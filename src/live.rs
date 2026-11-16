@@ -39,9 +39,9 @@ pub(crate) fn play_live(waveform: Waveform, voice_mode: VoiceMode) {
             move |data: &mut [f32], _| {
                 for event in receiver.try_iter() {
                     match event {
-                        NoteEvent::On(id) => {
+                        NoteEvent::On{id, pitch} => {
                             let note = Note {
-                                frequency: 440.0 * 2.0_f64.powf((f64::from(id) - 69.0) / 12.0),
+                                frequency: 440.0 * 2.0_f64.powf((f64::from(pitch) - 69.0) / 12.0),
                                 start_sec: 0.0,
                                 duration_sec: 0.0,
                                 amplitude: 0.5,

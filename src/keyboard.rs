@@ -10,7 +10,7 @@ use winit::{
 };
 
 pub(crate) enum NoteEvent {
-    On(u8),
+    On {id: u8, pitch: u8},
     Off(u8),
     AllOff,
 }
@@ -18,6 +18,7 @@ pub(crate) enum NoteEvent {
 #[derive(Default)]
 struct Keys {
     held: [bool; 13],
+    shift_held: bool,
 }
 
 impl Keys {
@@ -27,7 +28,8 @@ impl Keys {
         match state {
             ElementState::Pressed if !repeat && !*held => {
                 *held = true;
-                Some(NoteEvent::On(id))
+                let pitch = if self.shift_held {id + 12} else { id };
+                Some(NoteEvent::On{id, pitch})
             }
             ElementState::Released if *held => {
                 *held = false;
@@ -39,6 +41,7 @@ impl Keys {
 
     fn clear(&mut self) {
         self.held.fill(false);
+        self.shift_held = false;
     }
 }
 
@@ -100,6 +103,9 @@ impl ApplicationHandler for KeyboardApp {
                 event_loop.exit();
             }
             WindowEvent::Focused(false) => self.release_all(),
+            WindowEvent::ModifiersChanged(modifiers) =>{
+                self.keys.shift_held = modifiers.state().shift_key();
+            },
             WindowEvent::KeyboardInput {
                 event,
                 is_synthetic: false,
@@ -146,7 +152,7 @@ mod tests {
         let mut keys = Keys::default();
         assert!(matches!(
             keys.handle(KeyCode::KeyA, ElementState::Pressed, false),
-            Some(NoteEvent::On(60))
+            Some(NoteEvent::On{id: 60, pitch: 60})
         ));
         assert!(
             keys.handle(KeyCode::KeyA, ElementState::Pressed, true)
@@ -173,7 +179,7 @@ mod tests {
         keys.clear();
         assert!(matches!(
             keys.handle(KeyCode::KeyH, ElementState::Pressed, false),
-            Some(NoteEvent::On(69))
+            Some(NoteEvent::On{id:69, pitch: 69})
         ));
         assert_eq!(key_note(KeyCode::KeyK), Some(72));
         assert_eq!(key_note(KeyCode::Space), None);
