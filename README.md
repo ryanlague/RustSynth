@@ -28,11 +28,33 @@ The window captures physical key positions (the labels below assume QWERTY).
 | K | C5 |
 
 Releasing a key starts its release tail. Changing window focus releases all notes.
-Press Escape or close the window to exit. The window is an input surface; controls
-are shown in its title and in the terminal.
+Hold Shift when pressing a key to play one octave higher. Releasing Shift does
+not change notes that are already sounding.
 
-Live mode uses eight sine-wave voices in polyphonic mode. Its synth settings are in
-`src/live.rs`. The current audio output path requires an `f32` device configuration.
+Choose Sine, Triangle, Square, or Sawtooth from the waveform dropdown, or press
+1–4 while playing. The selector stays synchronized with the number-key shortcuts. Changes
+affect both held notes and future notes without restarting their envelopes.
+
+The live waveform shows the most recent 25 milliseconds of the actual output,
+including chords and envelope changes. It refreshes about 30 times per second and
+returns to a flat line after notes finish releasing. A fixed 4× display gain makes
+quiet notes easier to see; it does not change playback volume. Loud peaks can
+extend beyond the display range.
+
+Enable **Lock to lowest note** to align the trace to the cycle start of the lowest
+sounding voice, including release tails. Turn it off for the free-running view.
+The toggle affects only the display; chords may still move as higher notes shift
+relative to the reference. With no suitable trigger, the view uses the latest samples.
+
+While navigating a UI control, musical shortcuts are paused. Key releases still
+work. Click the play area to return to musical keyboard input. Escape dismisses
+an open selector; otherwise, while playing, it closes the window. You can also
+close the window with its close button.
+
+Live mode starts with eight sine-wave voices in polyphonic mode. Initial waveform
+and voice mode are chosen in `src/main.rs`; audio setup is in `src/live.rs`.
+`src/ui.rs` draws the window, `src/keyboard.rs` tracks musical keys, and
+`src/synth_event.rs` defines messages sent to the audio callback. The current audio output path requires an `f32` device configuration.
 
 ## Render the demo
 

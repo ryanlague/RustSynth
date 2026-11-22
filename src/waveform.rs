@@ -1,4 +1,4 @@
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Waveform {
     Sine,
     Triangle,
@@ -7,6 +7,15 @@ pub(crate) enum Waveform {
 }
 
 impl Waveform {
+    pub(crate) fn name(self) -> &'static str {
+        match self {
+            Self::Sine => "Sine",
+            Self::Triangle => "Triangle",
+            Self::Square => "Square",
+            Self::Sawtooth => "Sawtooth",
+        }
+    }
+
     pub(crate) fn calculate(&self, phase: f64, amplitude: f64) -> f64 {
         match self {
             Waveform::Sine => phase.sin() * amplitude,

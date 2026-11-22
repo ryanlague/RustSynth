@@ -39,6 +39,12 @@ impl Synth {
         }
     }
 
+    pub(crate) fn set_waveform(&mut self, waveform: Waveform) {
+        for voice in &mut self.voices {
+            voice.set_waveform(waveform);
+        }
+    }
+
     fn allocate_voice(&mut self) -> usize {
         match self.mode {
             VoiceMode::Monophonic | VoiceMode::Legato => return 0,
@@ -188,6 +194,17 @@ impl Synth {
         }
         mixed_sample
     }
+
+    /// Marks the start of a cycle of the lowest sounding voice, including tails.
+    pub(crate) fn scope_trigger(&self, sample_rate: u32) -> bool {
+        self.voices
+            .iter()
+            .filter_map(Voice::oscillator_position)
+            .min_by(|a, b| a.0.total_cmp(&b.0))
+            .is_some_and(|(frequency, phase)| {
+                phase < std::f64::consts::TAU * frequency / sample_rate as f64
+            })
+    }
 }
 
 #[cfg(test)]
@@ -293,5 +310,37 @@ mod tests {
             }
             assert!(synth.voices.iter().all(|voice| !voice.active));
         }
+    }
+
+    #[test]
+    fn scope_trigger_follows_the_lowest_sounding_voice_and_its_release_tail() {
+        let mut synth = Synth::new(2, Waveform::Sine, VoiceMode::Polyphonic);
+        let mut note = demo_1().remove(0);
+        note.frequency = 125.0;
+        assert!(!synth.scope_trigger(1_000));
+        synth.note_on(1, &note, 0.25, 1_000);
+        note.frequency = 250.0;
+        synth.note_on(2, &note, 0.25, 1_000);
+        assert!(synth.scope_trigger(1_000));
+        for _ in 0..4 {
+            synth.next_sample(1_000);
+        }
+        // The higher voice has wrapped, but the lower one is only half-way.
+        assert!(!synth.scope_trigger(1_000));
+        synth.note_off(1, 0.25, 1_000);
+        assert!(!synth.scope_trigger(1_000));
+        for _ in 0..4 {
+            synth.next_sample(1_000);
+        }
+        assert!(synth.scope_trigger(1_000));
+        for _ in 0..201 {
+            synth.next_sample(1_000);
+        }
+        assert!(!synth.voices[0].active);
+        assert!(synth.voices[1].active);
+        // Read-only display queries do not affect synthesis.
+        let before = synth.voices[1].oscillator_position();
+        synth.scope_trigger(1_000);
+        assert_eq!(before, synth.voices[1].oscillator_position());
     }
 }

@@ -25,6 +25,18 @@ impl Voice {
         }
     }
 
+    pub(crate) fn set_waveform(&mut self, waveform: Waveform) {
+        self.waveform = waveform;
+    }
+
+    pub(crate) fn oscillator_position(&self) -> Option<(f64, f64)> {
+        if self.active && self.frequency > 0.0 {
+            Some((self.frequency, self.phase))
+        } else {
+            None
+        }
+    }
+
     pub(crate) fn release(&mut self, sample_rate: u32) {
         if !self.active {
             return;

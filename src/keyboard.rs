@@ -1,146 +1,60 @@
-use std::sync::mpsc::Sender;
+use eframe::egui::Key;
 
-use winit::{
-    application::ApplicationHandler,
-    dpi::LogicalSize,
-    event::{ElementState, WindowEvent},
-    event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
-    keyboard::{KeyCode, PhysicalKey},
-    window::{Window, WindowId},
-};
-
-pub(crate) enum NoteEvent {
-    On {id: u8, pitch: u8},
-    Off(u8),
-    AllOff,
-}
+use crate::synth_event::SynthEvent;
 
 #[derive(Default)]
-struct Keys {
+pub(crate) struct Keys {
     held: [bool; 13],
-    shift_held: bool,
 }
 
 impl Keys {
-    fn handle(&mut self, code: KeyCode, state: ElementState, repeat: bool) -> Option<NoteEvent> {
-        let id = key_note(code)?;
+    pub(crate) fn handle(
+        &mut self,
+        key: Key,
+        pressed: bool,
+        repeat: bool,
+        shift: bool,
+    ) -> Option<SynthEvent> {
+        let id = key_note(key)?;
         let held = &mut self.held[usize::from(id - 60)];
-        match state {
-            ElementState::Pressed if !repeat && !*held => {
-                *held = true;
-                let pitch = if self.shift_held {id + 12} else { id };
-                Some(NoteEvent::On{id, pitch})
-            }
-            ElementState::Released if *held => {
-                *held = false;
-                Some(NoteEvent::Off(id))
-            }
-            _ => None,
+        if pressed && !repeat && !*held {
+            *held = true;
+            let pitch = if shift { id + 12 } else { id };
+            Some(SynthEvent::On { id, pitch })
+        } else if !pressed && *held {
+            *held = false;
+            Some(SynthEvent::Off(id))
+        } else {
+            None
         }
     }
 
-    fn clear(&mut self) {
+    pub(crate) fn clear(&mut self) {
         self.held.fill(false);
-        self.shift_held = false;
+    }
+
+    pub(crate) fn held_count(&self) -> usize {
+        self.held.iter().filter(|&&held| held).count()
     }
 }
 
-fn key_note(code: KeyCode) -> Option<u8> {
-    Some(match code {
-        KeyCode::KeyA => 60,
-        KeyCode::KeyW => 61,
-        KeyCode::KeyS => 62,
-        KeyCode::KeyE => 63,
-        KeyCode::KeyD => 64,
-        KeyCode::KeyF => 65,
-        KeyCode::KeyT => 66,
-        KeyCode::KeyG => 67,
-        KeyCode::KeyY => 68,
-        KeyCode::KeyH => 69,
-        KeyCode::KeyU => 70,
-        KeyCode::KeyJ => 71,
-        KeyCode::KeyK => 72,
+fn key_note(key: Key) -> Option<u8> {
+    Some(match key {
+        Key::A => 60,
+        Key::W => 61,
+        Key::S => 62,
+        Key::E => 63,
+        Key::D => 64,
+        Key::F => 65,
+        Key::T => 66,
+        Key::G => 67,
+        Key::Y => 68,
+        Key::H => 69,
+        Key::U => 70,
+        Key::J => 71,
+        Key::K => 72,
         _ => return None,
     })
-}
-
-struct KeyboardApp {
-    window: Option<Window>,
-    sender: Sender<NoteEvent>,
-    keys: Keys,
-}
-
-impl KeyboardApp {
-    fn release_all(&mut self) {
-        self.keys.clear();
-        let _ = self.sender.send(NoteEvent::AllOff);
-    }
-}
-
-impl ApplicationHandler for KeyboardApp {
-    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        if self.window.is_none() {
-            self.window = Some(
-                event_loop
-                    .create_window(
-                        Window::default_attributes()
-                            .with_title("RustSynth | A W S E D F T G Y H U J K | Esc to exit")
-                            .with_inner_size(LogicalSize::new(720.0, 240.0)),
-                    )
-                    .expect("Could not create keyboard window"),
-            );
-        }
-    }
-
-    fn suspended(&mut self, _: &ActiveEventLoop) {
-        self.release_all();
-    }
-
-    fn window_event(&mut self, event_loop: &ActiveEventLoop, _: WindowId, event: WindowEvent) {
-        match event {
-            WindowEvent::CloseRequested => {
-                self.release_all();
-                event_loop.exit();
-            }
-            WindowEvent::Focused(false) => self.release_all(),
-            WindowEvent::ModifiersChanged(modifiers) =>{
-                self.keys.shift_held = modifiers.state().shift_key();
-            },
-            WindowEvent::KeyboardInput {
-                event,
-                is_synthetic: false,
-                ..
-            } => {
-                if let PhysicalKey::Code(code) = event.physical_key {
-                    if code == KeyCode::Escape && event.state == ElementState::Pressed {
-                        self.release_all();
-                        event_loop.exit();
-                        return;
-                    }
-                    if let Some(message) = self.keys.handle(code, event.state, event.repeat) {
-                        let _ = self.sender.send(message);
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-}
-
-pub(crate) fn run(sender: Sender<NoteEvent>) {
-    println!(
-        "Focus the RustSynth window to play.\nWhite keys: A S D F G H J K (C4 to C5)\nBlack keys: W E T Y U\nRelease a key to release its note. Escape closes the window."
-    );
-    let event_loop = EventLoop::new().expect("Could not create keyboard event loop");
-    event_loop.set_control_flow(ControlFlow::Wait);
-    let mut app = KeyboardApp {
-        window: None,
-        sender,
-        keys: Keys::default(),
-    };
-    event_loop
-        .run_app(&mut app)
-        .expect("Keyboard event loop failed");
 }
 
 #[cfg(test)]
@@ -151,37 +65,47 @@ mod tests {
     fn key_repeat_and_unmatched_releases_are_ignored() {
         let mut keys = Keys::default();
         assert!(matches!(
-            keys.handle(KeyCode::KeyA, ElementState::Pressed, false),
-            Some(NoteEvent::On{id: 60, pitch: 60})
+            keys.handle(Key::A, true, false, false),
+            Some(SynthEvent::On { id: 60, pitch: 60 })
         ));
-        assert!(
-            keys.handle(KeyCode::KeyA, ElementState::Pressed, true)
-                .is_none()
-        );
-        assert!(
-            keys.handle(KeyCode::KeyA, ElementState::Pressed, false)
-                .is_none()
-        );
+        assert!(keys.handle(Key::A, true, true, false).is_none());
+        assert!(keys.handle(Key::A, true, false, false).is_none());
         assert!(matches!(
-            keys.handle(KeyCode::KeyA, ElementState::Released, false),
-            Some(NoteEvent::Off(60))
+            keys.handle(Key::A, false, false, false),
+            Some(SynthEvent::Off(60))
         ));
-        assert!(
-            keys.handle(KeyCode::KeyA, ElementState::Released, false)
-                .is_none()
-        );
+        assert!(keys.handle(Key::A, false, false, false).is_none());
+    }
+
+    #[test]
+    fn shift_changes_pitch_but_not_the_key_identity() {
+        let mut keys = Keys::default();
+        assert!(matches!(
+            keys.handle(Key::A, true, false, true),
+            Some(SynthEvent::On { id: 60, pitch: 72 })
+        ));
+        assert!(matches!(
+            keys.handle(Key::K, true, false, false),
+            Some(SynthEvent::On { id: 72, pitch: 72 })
+        ));
+        assert_eq!(keys.held_count(), 2);
+        assert!(matches!(
+            keys.handle(Key::A, false, false, false),
+            Some(SynthEvent::Off(60))
+        ));
+        assert_eq!(keys.held_count(), 1);
     }
 
     #[test]
     fn clearing_keys_allows_a_fresh_press_after_focus_returns() {
         let mut keys = Keys::default();
-        keys.handle(KeyCode::KeyH, ElementState::Pressed, false);
+        keys.handle(Key::H, true, false, true);
         keys.clear();
         assert!(matches!(
-            keys.handle(KeyCode::KeyH, ElementState::Pressed, false),
-            Some(NoteEvent::On{id:69, pitch: 69})
+            keys.handle(Key::H, true, false, false),
+            Some(SynthEvent::On { id: 69, pitch: 69 })
         ));
-        assert_eq!(key_note(KeyCode::KeyK), Some(72));
-        assert_eq!(key_note(KeyCode::Space), None);
+        assert_eq!(key_note(Key::K), Some(72));
+        assert_eq!(key_note(Key::Space), None);
     }
 }
