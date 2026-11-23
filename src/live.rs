@@ -3,9 +3,9 @@ use std::sync::mpsc;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 
 use crate::{
+    live_engine::{LiveEngine, LoopMonitor},
     oscilloscope::Oscilloscope,
-    synth::{Synth, VoiceMode},
-    synth_event::SynthEvent,
+    synth::VoiceMode,
     ui,
     waveform::Waveform,
 };
@@ -29,8 +29,9 @@ pub(crate) fn play_live(waveform: Waveform, voice_mode: VoiceMode) {
     let sample_rate = stream_config.sample_rate;
     let channels = stream_config.channels as usize;
 
-    let mut synth = Synth::new(8, waveform, voice_mode);
-    let env = synth.envelope();
+    let monitor = LoopMonitor::default();
+    let mut engine = LiveEngine::new(waveform, voice_mode, sample_rate, monitor.clone());
+    let env = engine.envelope();
 
     let (sender, receiver) = mpsc::channel();
     let scope = Oscilloscope::new(sample_rate);
@@ -41,28 +42,19 @@ pub(crate) fn play_live(waveform: Waveform, voice_mode: VoiceMode) {
             stream_config,
             move |data: &mut [f32], _| {
                 for event in receiver.try_iter() {
-                    match event {
-                        SynthEvent::On { id, pitch } => {
-                            let frequency = 440.0 * 2.0_f64.powf((f64::from(pitch) - 69.0) / 12.0);
-                            synth.note_on(id, frequency, 0.5, 0.25, sample_rate);
-                        }
-                        SynthEvent::Off(id) => synth.note_off(id, 0.25, sample_rate),
-                        SynthEvent::AllOff => synth.all_notes_off(sample_rate),
-                        SynthEvent::SetWaveform(waveform) => synth.set_waveform(waveform),
-                        SynthEvent::SetEnvelope(env) => synth.set_envelope(env),
-                        SynthEvent::SetVoiceMode(mode) => synth.set_voice_mode(mode, sample_rate),
-                    }
+                    engine.handle(event);
                 }
 
                 let mut capture = audio_scope.try_capture();
                 for frame in data.chunks_mut(channels) {
-                    let trigger = capture.is_some() && synth.scope_trigger(sample_rate);
-                    let sample = synth.next_sample(sample_rate) as f32;
+                    let trigger = capture.is_some() && engine.scope_trigger();
+                    let sample = engine.next_sample();
                     frame.fill(sample);
                     if let Some(history) = &mut capture {
                         history.push(sample, trigger);
                     }
                 }
+                engine.publish_status();
             },
             |error| {
                 eprintln!("Audio stream error: {error}");
@@ -73,7 +65,7 @@ pub(crate) fn play_live(waveform: Waveform, voice_mode: VoiceMode) {
 
     stream.play().expect("Could not start audio stream");
 
-    ui::run(sender, waveform, voice_mode, scope, env);
+    ui::run(sender, waveform, voice_mode, scope, env, monitor);
     // Let releases finish before dropping the stream.
     std::thread::sleep(std::time::Duration::from_millis(250));
 }

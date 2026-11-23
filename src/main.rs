@@ -1,11 +1,16 @@
 mod demo;
 mod envelope;
+mod filter;
 mod keyboard;
 mod live;
+mod live_engine;
+mod looper;
+mod metronome;
 mod note;
 mod oscilloscope;
 mod synth;
 mod synth_event;
+mod transport;
 mod ui;
 mod voice;
 mod wav;

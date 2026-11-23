@@ -47,7 +47,7 @@ impl Synth {
             next_voice: 0,
             mode,
             held_notes: Vec::new(),
-            live_notes: Vec::new(),
+            live_notes: Vec::with_capacity(256),
             env: ADSR::default(),
         }
     }
@@ -69,6 +69,10 @@ impl Synth {
             self.next_voice = 0;
             self.mode = mode;
         }
+    }
+
+    pub(crate) fn is_active(&self) -> bool {
+        self.voices.iter().any(|voice| voice.active)
     }
 
     pub(crate) fn envelope(&self) -> ADSR {
@@ -242,15 +246,18 @@ impl Synth {
         mixed_sample
     }
 
-    /// Marks the start of a cycle of the lowest sounding voice, including tails.
-    pub(crate) fn scope_trigger(&self, sample_rate: u32) -> bool {
+    pub(crate) fn lowest_oscillator(&self) -> Option<(f64, f64)> {
         self.voices
             .iter()
             .filter_map(Voice::oscillator_position)
             .min_by(|a, b| a.0.total_cmp(&b.0))
-            .is_some_and(|(frequency, phase)| {
-                phase < std::f64::consts::TAU * frequency / sample_rate as f64
-            })
+    }
+
+    #[cfg(test)]
+    pub(crate) fn scope_trigger(&self, sample_rate: u32) -> bool {
+        self.lowest_oscillator().is_some_and(|(frequency, phase)| {
+            phase < std::f64::consts::TAU * frequency / f64::from(sample_rate)
+        })
     }
 }
 

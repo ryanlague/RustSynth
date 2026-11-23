@@ -1,4 +1,8 @@
-use crate::{envelope::ADSR, note::Note, waveform::Waveform};
+use crate::{
+    envelope::ADSR,
+    note::Note,
+    waveform::{Noise, Waveform},
+};
 
 pub(crate) struct Voice {
     pub(crate) active: bool,
@@ -9,6 +13,7 @@ pub(crate) struct Voice {
     elapsed_samples: usize,
     note_off_sec: f64,
     env: ADSR,
+    noise: Noise,
 }
 
 impl Voice {
@@ -22,10 +27,14 @@ impl Voice {
             elapsed_samples: 0,
             note_off_sec: 0.0,
             env: ADSR::new(0.0, 0.0, 1.0, 0.0),
+            noise: Noise::new(),
         }
     }
 
     pub(crate) fn set_waveform(&mut self, waveform: Waveform) {
+        if self.waveform != waveform {
+            self.noise.reset_filter();
+        }
         self.waveform = waveform;
     }
 
@@ -34,7 +43,13 @@ impl Voice {
     }
 
     pub(crate) fn oscillator_position(&self) -> Option<(f64, f64)> {
-        if self.active && self.frequency > 0.0 {
+        if self.active
+            && self.frequency > 0.0
+            && !matches!(
+                self.waveform,
+                Waveform::WhiteNoise | Waveform::FilteredNoise
+            )
+        {
             Some((self.frequency, self.phase))
         } else {
             None
@@ -56,6 +71,7 @@ impl Voice {
         self.note_off_sec = note.duration_sec;
         self.set_envelope(note.env);
 
+        self.noise.reset_filter();
         self.phase = 0.0;
         self.elapsed_samples = 0;
         self.active = true;
@@ -77,8 +93,13 @@ impl Voice {
                 return 0.0;
             }
 
+            if self.waveform == Waveform::FilteredNoise {
+                self.noise.tune(self.frequency, sample_rate);
+            }
             let gain = self.env.gain(time, self.note_off_sec);
-            let sample = self.waveform.calculate(self.phase, self.amplitude * gain);
+            let sample =
+                self.waveform
+                    .calculate(self.phase, self.amplitude * gain, &mut self.noise);
 
             let phase_step = std::f64::consts::TAU * self.frequency / sample_rate as f64;
             self.phase = (self.phase + phase_step) % std::f64::consts::TAU;
@@ -99,5 +120,35 @@ impl Voice {
     pub(crate) fn transition_held(&mut self, note: &Note, global_amplitude: f64, sample_rate: u32) {
         self.transition(note, global_amplitude, sample_rate);
         self.note_off_sec = f64::INFINITY;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn noise_percussion_decays_to_silence_while_held_and_releases_normally() {
+        for waveform in [Waveform::WhiteNoise, Waveform::FilteredNoise] {
+            let mut voice = Voice::new(0.0, 0.0, waveform);
+            let note = Note {
+                frequency: 440.0,
+                start_sec: 0.0,
+                duration_sec: 0.0,
+                amplitude: 0.5,
+                env: ADSR::new(0.0, 0.02, 0.0, 0.01),
+            };
+            voice.start_held(&note, 0.25);
+            let samples: Vec<_> = (0..1_440).map(|_| voice.next_sample(48_000)).collect();
+            assert!(samples[..960].iter().any(|sample| *sample != 0.0));
+            assert!(samples.iter().all(|sample| sample.is_finite()));
+            assert!(samples[960..].iter().all(|sample| *sample == 0.0));
+            assert!(voice.oscillator_position().is_none());
+            voice.release(48_000);
+            for _ in 0..500 {
+                voice.next_sample(48_000);
+            }
+            assert!(!voice.active);
+        }
     }
 }
