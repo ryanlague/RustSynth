@@ -1,9 +1,20 @@
-use crate::{note::Note, voice::Voice, waveform::Waveform};
+use crate::{envelope::ADSR, note::Note, voice::Voice, waveform::Waveform};
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum VoiceMode {
     Polyphonic,
     Monophonic,
     Legato,
+}
+
+impl VoiceMode {
+    pub(crate) fn name(self) -> &'static str {
+        match self {
+            Self::Polyphonic => "Polyphonic",
+            Self::Monophonic => "Monophonic",
+            Self::Legato => "Legato",
+        }
+    }
 }
 
 struct LiveNote {
@@ -18,6 +29,7 @@ pub(crate) struct Synth {
     mode: VoiceMode,
     held_notes: Vec<Note>,
     live_notes: Vec<LiveNote>,
+    env: ADSR,
 }
 
 impl Synth {
@@ -36,6 +48,7 @@ impl Synth {
             mode,
             held_notes: Vec::new(),
             live_notes: Vec::new(),
+            env: ADSR::default(),
         }
     }
 
@@ -43,6 +56,23 @@ impl Synth {
         for voice in &mut self.voices {
             voice.set_waveform(waveform);
         }
+    }
+
+    pub(crate) fn set_envelope(&mut self, env: ADSR) {
+        self.env = env;
+    }
+
+    pub(crate) fn set_voice_mode(&mut self, mode: VoiceMode, sample_rate: u32) {
+        if self.mode != mode {
+            self.all_notes_off(sample_rate);
+            self.held_notes.clear();
+            self.next_voice = 0;
+            self.mode = mode;
+        }
+    }
+
+    pub(crate) fn envelope(&self) -> ADSR {
+        self.env
     }
 
     fn allocate_voice(&mut self) -> usize {
@@ -86,10 +116,27 @@ impl Synth {
         }
     }
 
-    pub(crate) fn note_on(&mut self, id: u8, note: &Note, global_amplitude: f64, sample_rate: u32) {
+    pub(crate) fn note_on(
+        &mut self,
+        id: u8,
+        frequency: f64,
+        amplitude: f64,
+        global_amplitude: f64,
+        sample_rate: u32,
+    ) {
         if self.live_notes.iter().any(|held| held.id == id) {
             return;
         }
+
+        // Each live press remembers the setting at note-on, including when
+        // it is later resumed by monophonic last-note priority.
+        let note = Note {
+            frequency,
+            start_sec: 0.0,
+            duration_sec: 0.0,
+            amplitude,
+            env: self.env,
+        };
 
         let keep_envelope = matches!(self.mode, VoiceMode::Legato) && !self.live_notes.is_empty();
         let voice_index = self.allocate_voice();
@@ -102,14 +149,14 @@ impl Synth {
         let voice = &mut self.voices[voice_index];
 
         if keep_envelope {
-            voice.transition_held(note, global_amplitude, sample_rate);
+            voice.transition_held(&note, global_amplitude, sample_rate);
         } else {
-            voice.start_held(note, global_amplitude);
+            voice.start_held(&note, global_amplitude);
         }
 
         self.live_notes.push(LiveNote {
             id,
-            note: note.clone(),
+            note,
             voice_index,
         });
     }
@@ -222,7 +269,7 @@ mod tests {
             VoiceMode::Legato,
         ] {
             let mut synth = Synth::new(2, Waveform::Sine, mode);
-            synth.note_on(1, &note, 0.25, sample_rate);
+            synth.note_on(1, note.frequency, note.amplitude, 0.25, sample_rate);
             for _ in 0..4_000 {
                 synth.next_sample(sample_rate);
             }
@@ -240,8 +287,8 @@ mod tests {
     fn releasing_stolen_note_does_not_release_its_replacement() {
         let notes = demo_1();
         let mut synth = Synth::new(1, Waveform::Sine, VoiceMode::Polyphonic);
-        synth.note_on(1, &notes[0], 0.25, 1_000);
-        synth.note_on(2, &notes[1], 0.25, 1_000);
+        synth.note_on(1, notes[0].frequency, notes[0].amplitude, 0.25, 1_000);
+        synth.note_on(2, notes[1].frequency, notes[1].amplitude, 0.25, 1_000);
         synth.note_off(1, 0.25, 1_000);
         for _ in 0..2_000 {
             synth.next_sample(1_000);
@@ -261,12 +308,12 @@ mod tests {
             let legato = matches!(mode, VoiceMode::Legato);
             let mut synth = Synth::new(2, Waveform::Sine, mode);
             let mut expected = Voice::new(0.0, 0.0, Waveform::Sine);
-            synth.note_on(1, &notes[0], 0.25, 1_000);
+            synth.note_on(1, notes[0].frequency, notes[0].amplitude, 0.25, 1_000);
             expected.start_held(&notes[0], 0.25);
             for _ in 0..37 {
                 assert_eq!(synth.next_sample(1_000), expected.next_sample(1_000));
             }
-            synth.note_on(2, &notes[1], 0.25, 1_000);
+            synth.note_on(2, notes[1].frequency, notes[1].amplitude, 0.25, 1_000);
             if legato {
                 expected.transition_held(&notes[1], 0.25, 1_000);
             } else {
@@ -298,8 +345,8 @@ mod tests {
             VoiceMode::Legato,
         ] {
             let mut synth = Synth::new(2, Waveform::Sine, mode);
-            synth.note_on(1, &notes[0], 0.25, 1_000);
-            synth.note_on(2, &notes[1], 0.25, 1_000);
+            synth.note_on(1, notes[0].frequency, notes[0].amplitude, 0.25, 1_000);
+            synth.note_on(2, notes[1].frequency, notes[1].amplitude, 0.25, 1_000);
             for _ in 0..100 {
                 synth.next_sample(1_000);
             }
@@ -318,9 +365,9 @@ mod tests {
         let mut note = demo_1().remove(0);
         note.frequency = 125.0;
         assert!(!synth.scope_trigger(1_000));
-        synth.note_on(1, &note, 0.25, 1_000);
+        synth.note_on(1, note.frequency, note.amplitude, 0.25, 1_000);
         note.frequency = 250.0;
-        synth.note_on(2, &note, 0.25, 1_000);
+        synth.note_on(2, note.frequency, note.amplitude, 0.25, 1_000);
         assert!(synth.scope_trigger(1_000));
         for _ in 0..4 {
             synth.next_sample(1_000);
@@ -342,5 +389,135 @@ mod tests {
         let before = synth.voices[1].oscillator_position();
         synth.scope_trigger(1_000);
         assert_eq!(before, synth.voices[1].oscillator_position());
+    }
+
+    #[test]
+    fn live_envelope_changes_affect_new_notes_without_changing_release_tails() {
+        let mut synth = Synth::new(2, Waveform::Sine, VoiceMode::Polyphonic);
+        let mut first = demo_1().remove(0);
+        first.env = synth.envelope();
+        let mut old_voice = Voice::new(0.0, 0.0, Waveform::Sine);
+        old_voice.start_held(&first, 0.25);
+        synth.note_on(1, first.frequency, first.amplitude, 0.25, 1_000);
+        for _ in 0..100 {
+            assert_eq!(synth.next_sample(1_000), old_voice.next_sample(1_000));
+        }
+        synth.note_off(1, 0.25, 1_000);
+        old_voice.release(1_000);
+        let mut second = first.clone();
+        second.frequency = 330.0;
+        second.env = ADSR::new(0.3, 0.2, 0.25, 0.8);
+        synth.set_envelope(second.env);
+        let mut new_voice = Voice::new(0.0, 0.0, Waveform::Sine);
+        new_voice.start_held(&second, 0.25);
+        synth.note_on(2, second.frequency, second.amplitude, 0.25, 1_000);
+        for _ in 0..500 {
+            let expected = old_voice.next_sample(1_000) + new_voice.next_sample(1_000);
+            assert_eq!(synth.next_sample(1_000), expected);
+        }
+    }
+
+    #[test]
+    fn returning_mono_notes_and_connected_legato_keep_their_envelopes() {
+        for mode in [VoiceMode::Monophonic, VoiceMode::Legato] {
+            let legato = matches!(mode, VoiceMode::Legato);
+            let mut synth = Synth::new(1, Waveform::Sine, mode);
+            let mut first = demo_1().remove(0);
+            first.env = synth.envelope();
+            let mut expected = Voice::new(0.0, 0.0, Waveform::Sine);
+            expected.start_held(&first, 0.25);
+            synth.note_on(1, first.frequency, first.amplitude, 0.25, 1_000);
+            for _ in 0..37 {
+                assert_eq!(synth.next_sample(1_000), expected.next_sample(1_000));
+            }
+            let mut second = first.clone();
+            second.frequency = 330.0;
+            second.env = ADSR::new(0.4, 0.2, 0.1, 0.5);
+            synth.set_envelope(second.env);
+            synth.note_on(2, second.frequency, second.amplitude, 0.25, 1_000);
+            if legato {
+                expected.transition_held(&second, 0.25, 1_000);
+            } else {
+                expected.start_held(&second, 0.25);
+            }
+            for _ in 0..53 {
+                assert_eq!(synth.next_sample(1_000), expected.next_sample(1_000));
+            }
+            synth.note_off(2, 0.25, 1_000);
+            if legato {
+                expected.transition_held(&first, 0.25, 1_000);
+            } else {
+                expected.start_held(&first, 0.25);
+            }
+            for _ in 0..100 {
+                assert_eq!(synth.next_sample(1_000), expected.next_sample(1_000));
+            }
+        }
+    }
+
+    #[test]
+    fn scheduled_notes_use_their_own_envelopes() {
+        let mut synth = Synth::new(1, Waveform::Sine, VoiceMode::Polyphonic);
+        synth.set_envelope(ADSR::new(1.0, 1.0, 0.0, 2.0));
+        let note = demo_1().remove(0);
+        let mut expected = Voice::new(0.0, 0.0, Waveform::Sine);
+        expected.start(&note, 0.25);
+        synth.play_note(&note, 0.25, 1_000);
+        for _ in 0..4_000 {
+            assert_eq!(synth.next_sample(1_000), expected.next_sample(1_000));
+        }
+    }
+
+    #[test]
+    fn changing_voice_mode_releases_old_notes_and_uses_the_new_allocation() {
+        let modes = [
+            VoiceMode::Polyphonic,
+            VoiceMode::Monophonic,
+            VoiceMode::Legato,
+        ];
+        for from in modes {
+            for to in modes {
+                if from == to {
+                    continue;
+                }
+                let mut synth = Synth::new(3, Waveform::Sine, from);
+                synth.note_on(1, 220.0, 0.5, 0.25, 1_000);
+                synth.note_on(2, 330.0, 0.5, 0.25, 1_000);
+                for _ in 0..100 {
+                    synth.next_sample(1_000);
+                }
+                synth.set_voice_mode(to, 1_000);
+                assert_eq!(synth.mode, to);
+                assert!(synth.live_notes.is_empty());
+                assert!(synth.voices.iter().any(|voice| voice.active));
+                for _ in 0..210 {
+                    synth.next_sample(1_000);
+                }
+                assert!(synth.voices.iter().all(|voice| !voice.active));
+                // IDs from the old mode can be pressed again, with fresh tracking.
+                synth.note_on(1, 220.0, 0.5, 0.25, 1_000);
+                synth.note_on(2, 330.0, 0.5, 0.25, 1_000);
+                let active = synth.voices.iter().filter(|voice| voice.active).count();
+                assert_eq!(active, if to == VoiceMode::Polyphonic { 2 } else { 1 });
+                synth.note_off(2, 0.25, 1_000);
+                synth.note_off(1, 0.25, 1_000);
+                for _ in 0..210 {
+                    synth.next_sample(1_000);
+                }
+                assert!(synth.voices.iter().all(|voice| !voice.active));
+            }
+        }
+    }
+
+    #[test]
+    fn selecting_the_current_mode_does_not_release_held_notes() {
+        let mut synth = Synth::new(2, Waveform::Sine, VoiceMode::Polyphonic);
+        synth.note_on(1, 220.0, 0.5, 0.25, 1_000);
+        synth.set_voice_mode(VoiceMode::Polyphonic, 1_000);
+        assert_eq!(synth.live_notes.len(), 1);
+        for _ in 0..1_000 {
+            synth.next_sample(1_000);
+        }
+        assert!(synth.voices[0].active);
     }
 }

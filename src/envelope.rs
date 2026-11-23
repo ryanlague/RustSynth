@@ -1,4 +1,4 @@
-#[derive(Clone)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct ADSR {
     attack_sec: f64,
     decay_sec: f64,
@@ -14,6 +14,18 @@ impl ADSR {
             sustain_level: s,
             release_sec: r,
         }
+    }
+
+    pub(crate) fn attack_sec(&self) -> f64 {
+        self.attack_sec
+    }
+
+    pub(crate) fn decay_sec(&self) -> f64 {
+        self.decay_sec
+    }
+
+    pub(crate) fn sustain_level(&self) -> f64 {
+        self.sustain_level
     }
 
     pub(crate) fn release_sec(&self) -> f64 {
@@ -41,5 +53,11 @@ impl ADSR {
         } else {
             0.0
         }
+    }
+}
+
+impl Default for ADSR {
+    fn default() -> Self {
+        Self::new(0.01, 0.1, 0.7, 0.2)
     }
 }

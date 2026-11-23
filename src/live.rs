@@ -3,8 +3,6 @@ use std::sync::mpsc;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 
 use crate::{
-    envelope::ADSR,
-    note::Note,
     oscilloscope::Oscilloscope,
     synth::{Synth, VoiceMode},
     synth_event::SynthEvent,
@@ -32,6 +30,7 @@ pub(crate) fn play_live(waveform: Waveform, voice_mode: VoiceMode) {
     let channels = stream_config.channels as usize;
 
     let mut synth = Synth::new(8, waveform, voice_mode);
+    let env = synth.envelope();
 
     let (sender, receiver) = mpsc::channel();
     let scope = Oscilloscope::new(sample_rate);
@@ -44,18 +43,14 @@ pub(crate) fn play_live(waveform: Waveform, voice_mode: VoiceMode) {
                 for event in receiver.try_iter() {
                     match event {
                         SynthEvent::On { id, pitch } => {
-                            let note = Note {
-                                frequency: 440.0 * 2.0_f64.powf((f64::from(pitch) - 69.0) / 12.0),
-                                start_sec: 0.0,
-                                duration_sec: 0.0,
-                                amplitude: 0.5,
-                                env: ADSR::new(0.01, 0.1, 0.7, 0.2),
-                            };
-                            synth.note_on(id, &note, 0.25, sample_rate);
+                            let frequency = 440.0 * 2.0_f64.powf((f64::from(pitch) - 69.0) / 12.0);
+                            synth.note_on(id, frequency, 0.5, 0.25, sample_rate);
                         }
                         SynthEvent::Off(id) => synth.note_off(id, 0.25, sample_rate),
                         SynthEvent::AllOff => synth.all_notes_off(sample_rate),
                         SynthEvent::SetWaveform(waveform) => synth.set_waveform(waveform),
+                        SynthEvent::SetEnvelope(env) => synth.set_envelope(env),
+                        SynthEvent::SetVoiceMode(mode) => synth.set_voice_mode(mode, sample_rate),
                     }
                 }
 
@@ -78,7 +73,7 @@ pub(crate) fn play_live(waveform: Waveform, voice_mode: VoiceMode) {
 
     stream.play().expect("Could not start audio stream");
 
-    ui::run(sender, waveform, scope);
+    ui::run(sender, waveform, voice_mode, scope, env);
     // Let releases finish before dropping the stream.
     std::thread::sleep(std::time::Duration::from_millis(250));
 }

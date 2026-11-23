@@ -35,6 +35,19 @@ Choose Sine, Triangle, Square, or Sawtooth from the waveform dropdown, or press
 1–4 while playing. The selector stays synchronized with the number-key shortcuts. Changes
 affect both held notes and future notes without restarting their envelopes.
 
+Use **Voice mode** to select Polyphonic (independent voices and chords),
+Monophonic (last-note priority with a retriggered envelope), or Legato (last-note
+priority while preserving phase and envelope). Changing modes releases held notes
+and clears key tracking; release and press the keys again to play in the new mode.
+Existing release tails finish fading out. Selecting the current mode has no effect.
+
+The ADSR sliders control the synth's live envelope setting: Attack and Decay
+range from 0–2 seconds, Sustain from 0–1, and Release from 0–3 seconds.
+Changes apply to new notes. Existing voices and release tails keep their settings;
+connected legato notes preserve the current phrase's envelope. Returning
+monophonic notes use the envelope saved when their key was first pressed.
+Scheduled WAV notes continue to carry their own envelopes.
+
 The live waveform shows the most recent 25 milliseconds of the actual output,
 including chords and envelope changes. It refreshes about 30 times per second and
 returns to a flat line after notes finish releasing. A fixed 4× display gain makes

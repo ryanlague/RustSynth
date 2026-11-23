@@ -3,13 +3,16 @@ use std::sync::mpsc::Sender;
 use eframe::egui::{self, Event, Key};
 
 use crate::{
-    keyboard::Keys, oscilloscope::Oscilloscope, synth_event::SynthEvent, waveform::Waveform,
+    envelope::ADSR, keyboard::Keys, oscilloscope::Oscilloscope, synth::VoiceMode,
+    synth_event::SynthEvent, waveform::Waveform,
 };
 
 struct SynthApp {
     sender: Sender<SynthEvent>,
     keys: Keys,
     waveform: Waveform,
+    voice_mode: VoiceMode,
+    env: ADSR,
     focused: bool,
     scope: Oscilloscope,
     scope_samples: Vec<f32>,
@@ -17,11 +20,19 @@ struct SynthApp {
 }
 
 impl SynthApp {
-    fn new(sender: Sender<SynthEvent>, waveform: Waveform, scope: Oscilloscope) -> Self {
+    fn new(
+        sender: Sender<SynthEvent>,
+        waveform: Waveform,
+        voice_mode: VoiceMode,
+        scope: Oscilloscope,
+        env: ADSR,
+    ) -> Self {
         Self {
             sender,
             keys: Keys::default(),
             waveform,
+            voice_mode,
+            env,
             focused: true,
             scope_samples: vec![0.0; scope.sample_count()],
             scope,
@@ -29,10 +40,69 @@ impl SynthApp {
         }
     }
 
+    fn set_voice_mode(&mut self, voice_mode: VoiceMode) {
+        if self.voice_mode != voice_mode {
+            self.keys.clear();
+            self.voice_mode = voice_mode;
+            let _ = self.sender.send(SynthEvent::SetVoiceMode(voice_mode));
+        }
+    }
+
     fn set_waveform(&mut self, waveform: Waveform) {
         if self.waveform != waveform {
             self.waveform = waveform;
             let _ = self.sender.send(SynthEvent::SetWaveform(waveform));
+        }
+    }
+
+    fn set_envelope(&mut self, env: ADSR) {
+        if self.env != env {
+            self.env = env;
+            let _ = self.sender.send(SynthEvent::SetEnvelope(env));
+        }
+    }
+
+    fn envelope_controls(&mut self, ui: &mut egui::Ui) {
+        ui.strong("Envelope");
+        let mut attack = self.env.attack_sec();
+        let mut decay = self.env.decay_sec();
+        let mut sustain = self.env.sustain_level();
+        let mut release = self.env.release_sec();
+        let mut changed = false;
+        changed |= ui
+            .add(
+                egui::Slider::new(&mut attack, 0.0..=2.0)
+                    .text("Attack")
+                    .suffix(" s")
+                    .max_decimals(3),
+            )
+            .changed();
+        changed |= ui
+            .add(
+                egui::Slider::new(&mut decay, 0.0..=2.0)
+                    .text("Decay")
+                    .suffix(" s")
+                    .max_decimals(3),
+            )
+            .changed();
+        changed |= ui
+            .add(
+                egui::Slider::new(&mut sustain, 0.0..=1.0)
+                    .text("Sustain")
+                    .max_decimals(2),
+            )
+            .changed();
+        changed |= ui
+            .add(
+                egui::Slider::new(&mut release, 0.0..=3.0)
+                    .text("Release")
+                    .suffix(" s")
+                    .max_decimals(3),
+            )
+            .changed();
+        ui.weak("Held notes keep their envelope. Legato keeps it for the connected phrase.");
+        if changed {
+            self.set_envelope(ADSR::new(attack, decay, sustain, release));
         }
     }
 
@@ -109,7 +179,8 @@ impl SynthApp {
             )
         });
         let captured_before = ctx.wants_keyboard_input() || egui::Popup::is_any_open(ctx);
-        let mut selected = self.waveform;
+        let mut selected_waveform = self.waveform;
+        let mut selected_voice_mode = self.voice_mode;
         self.scope
             .snapshot(&mut self.scope_samples, self.trigger_enabled);
         ctx.request_repaint_after(std::time::Duration::from_millis(33));
@@ -122,7 +193,7 @@ impl SynthApp {
             ui.horizontal(|ui| {
                 ui.label("Waveform");
                 let selector = egui::ComboBox::from_id_salt("waveform")
-                    .selected_text(selected.name())
+                    .selected_text(selected_waveform.name())
                     .width(180.0)
                     .show_ui(ui, |ui| {
                         for waveform in [
@@ -131,21 +202,38 @@ impl SynthApp {
                             Waveform::Square,
                             Waveform::Sawtooth,
                         ] {
-                            ui.selectable_value(&mut selected, waveform, waveform.name());
+                            ui.selectable_value(&mut selected_waveform, waveform, waveform.name());
                         }
                     });
-                if selected != self.waveform {
+                if selected_waveform != self.waveform {
                     selector.response.surrender_focus();
                 }
                 ui.weak("1 / 2 / 3 / 4");
             });
+            ui.horizontal(|ui| {
+                ui.label("Voice mode");
+                let selector = egui::ComboBox::from_id_salt("voice_mode")
+                    .selected_text(selected_voice_mode.name())
+                    .width(180.0)
+                    .show_ui(ui, |ui| {
+                        for mode in [VoiceMode::Polyphonic, VoiceMode::Monophonic, VoiceMode::Legato] {
+                            ui.selectable_value(&mut selected_voice_mode, mode, mode.name());
+                        }
+                    });
+                if selected_voice_mode != self.voice_mode {
+                    selector.response.surrender_focus();
+                }
+                selector.response.on_hover_text("Polyphonic: chords. Monophonic: one note with a retriggered envelope. Legato: one note with a continuous envelope. Changing mode releases held notes; release and press the keys again.");
+            });
             ui.add_space(16.0);
             ui.horizontal(|ui| {
                 ui.weak("Live output · 25 ms · 4× display gain");
-                ui.checkbox(&mut self.trigger_enabled, "Lock to lowest note")
+                ui.checkbox(&mut self.trigger_enabled, "Stabilize")
                     .on_hover_text("Align the display to the lowest sounding voice, including release tails. Chords may still move. This does not change the audio.");
             });
             waveform_preview(ui, &self.scope_samples);
+            ui.add_space(12.0);
+            self.envelope_controls(ui);
             ui.add_space(16.0);
             ui.separator();
             ui.add_space(10.0);
@@ -175,7 +263,8 @@ impl SynthApp {
             }
         });
 
-        self.set_waveform(selected);
+        self.set_waveform(selected_waveform);
+        self.set_voice_mode(selected_voice_mode);
         let captured =
             captured_before || ctx.wants_keyboard_input() || egui::Popup::is_any_open(ctx);
         let previous = self.waveform;
@@ -226,11 +315,17 @@ fn waveform_preview(ui: &mut egui::Ui, samples: &[f32]) {
         .add(egui::Shape::line(points, egui::Stroke::new(2.0_f32, color)));
 }
 
-pub(crate) fn run(sender: Sender<SynthEvent>, waveform: Waveform, scope: Oscilloscope) {
+pub(crate) fn run(
+    sender: Sender<SynthEvent>,
+    waveform: Waveform,
+    voice_mode: VoiceMode,
+    scope: Oscilloscope,
+    env: ADSR,
+) {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([620.0, 400.0])
-            .with_min_inner_size([540.0, 380.0]),
+            .with_inner_size([620.0, 620.0])
+            .with_min_inner_size([540.0, 600.0]),
         ..Default::default()
     };
     eframe::run_native(
@@ -238,7 +333,9 @@ pub(crate) fn run(sender: Sender<SynthEvent>, waveform: Waveform, scope: Oscillo
         options,
         Box::new(move |cc| {
             cc.egui_ctx.set_visuals(egui::Visuals::dark());
-            Ok(Box::new(SynthApp::new(sender, waveform, scope)))
+            Ok(Box::new(SynthApp::new(
+                sender, waveform, voice_mode, scope, env,
+            )))
         }),
     )
     .expect("Could not run synth UI");
@@ -262,7 +359,13 @@ mod tests {
     #[test]
     fn waveform_changes_send_one_message_and_shortcuts_update_selection() {
         let (sender, receiver) = mpsc::channel();
-        let mut app = SynthApp::new(sender, Waveform::Triangle, Oscilloscope::new(48_000));
+        let mut app = SynthApp::new(
+            sender,
+            Waveform::Triangle,
+            VoiceMode::Polyphonic,
+            Oscilloscope::new(48_000),
+            ADSR::default(),
+        );
         assert_eq!(app.waveform, Waveform::Triangle);
         app.set_waveform(Waveform::Triangle);
         assert!(receiver.try_recv().is_err());
@@ -282,7 +385,13 @@ mod tests {
     #[test]
     fn ui_navigation_blocks_note_presses_but_allows_existing_releases() {
         let (sender, receiver) = mpsc::channel();
-        let mut app = SynthApp::new(sender, Waveform::Sine, Oscilloscope::new(48_000));
+        let mut app = SynthApp::new(
+            sender,
+            Waveform::Sine,
+            VoiceMode::Polyphonic,
+            Oscilloscope::new(48_000),
+            ADSR::default(),
+        );
         app.handle_input(&[key(Key::A, true)], true, false);
         assert!(matches!(
             receiver.try_recv(),
@@ -302,7 +411,13 @@ mod tests {
     #[test]
     fn focus_loss_and_exit_release_notes() {
         let (sender, receiver) = mpsc::channel();
-        let mut app = SynthApp::new(sender, Waveform::Sine, Oscilloscope::new(48_000));
+        let mut app = SynthApp::new(
+            sender,
+            Waveform::Sine,
+            VoiceMode::Polyphonic,
+            Oscilloscope::new(48_000),
+            ADSR::default(),
+        );
         app.handle_input(&[key(Key::A, true)], true, false);
         receiver.try_recv().unwrap();
         app.handle_input(&[], false, false);
@@ -317,7 +432,7 @@ mod tests {
             egui::RawInput {
                 screen_rect: Some(egui::Rect::from_min_size(
                     egui::Pos2::ZERO,
-                    egui::vec2(620.0, 400.0),
+                    egui::vec2(620.0, 620.0),
                 )),
                 focused: true,
                 events,
@@ -356,7 +471,13 @@ mod tests {
     #[test]
     fn clicking_the_dropdown_selects_a_waveform_and_updates_the_label() {
         let (sender, receiver) = mpsc::channel();
-        let mut app = SynthApp::new(sender, Waveform::Sine, Oscilloscope::new(48_000));
+        let mut app = SynthApp::new(
+            sender,
+            Waveform::Sine,
+            VoiceMode::Polyphonic,
+            Oscilloscope::new(48_000),
+            ADSR::default(),
+        );
         let ctx = egui::Context::default();
         draw(&mut app, &ctx, vec![]);
         let output = draw(&mut app, &ctx, vec![]);
@@ -384,7 +505,13 @@ mod tests {
     fn live_trace_uses_captured_output_and_returns_to_a_flat_line() {
         let (sender, _) = mpsc::channel();
         let scope = Oscilloscope::new(160);
-        let mut app = SynthApp::new(sender, Waveform::Sine, scope.clone());
+        let mut app = SynthApp::new(
+            sender,
+            Waveform::Sine,
+            VoiceMode::Polyphonic,
+            scope.clone(),
+            ADSR::default(),
+        );
         let ctx = egui::Context::default();
         scope.capture(&[0.1, -0.1, 0.05, -0.05], 1);
         draw(&mut app, &ctx, vec![]);
@@ -416,15 +543,100 @@ mod tests {
     #[test]
     fn trigger_toggle_switches_display_mode_without_sending_audio_commands() {
         let (sender, receiver) = mpsc::channel();
-        let mut app = SynthApp::new(sender, Waveform::Sine, Oscilloscope::new(48_000));
+        let mut app = SynthApp::new(
+            sender,
+            Waveform::Sine,
+            VoiceMode::Polyphonic,
+            Oscilloscope::new(48_000),
+            ADSR::default(),
+        );
         let ctx = egui::Context::default();
         draw(&mut app, &ctx, vec![]);
         let output = draw(&mut app, &ctx, vec![]);
-        let toggle = text_position(&output, "Lock to lowest note");
+        let toggle = text_position(&output, "Stabilize");
         click(&mut app, &ctx, toggle);
         assert!(app.trigger_enabled);
         click(&mut app, &ctx, toggle);
         assert!(!app.trigger_enabled);
         assert!(receiver.try_recv().is_err());
+    }
+
+    #[test]
+    fn envelope_controls_start_from_the_supplied_setting_and_send_slider_changes() {
+        for label in ["Attack", "Decay", "Sustain", "Release"] {
+            let (sender, receiver) = mpsc::channel();
+            let initial = ADSR::new(0.15, 0.25, 0.5, 0.75);
+            let mut app = SynthApp::new(
+                sender,
+                Waveform::Sine,
+                VoiceMode::Polyphonic,
+                Oscilloscope::new(48_000),
+                initial,
+            );
+            let ctx = egui::Context::default();
+            draw(&mut app, &ctx, vec![]);
+            let output = draw(&mut app, &ctx, vec![]);
+            assert_eq!(app.env, initial);
+            assert!(receiver.try_recv().is_err());
+            let label_pos = text_position(&output, label);
+            // Sliders start at the panel's left edge, before their value and label.
+            let slider_pos = egui::pos2(ctx.style().spacing.slider_width * 0.75, label_pos.y);
+            click(&mut app, &ctx, slider_pos);
+            let SynthEvent::SetEnvelope(env) =
+                receiver.try_recv().expect("Slider should send its setting")
+            else {
+                panic!("Expected envelope update");
+            };
+            assert_eq!(env, app.env);
+            match label {
+                "Attack" => assert_ne!(env.attack_sec(), initial.attack_sec()),
+                "Decay" => assert_ne!(env.decay_sec(), initial.decay_sec()),
+                "Sustain" => assert_ne!(env.sustain_level(), initial.sustain_level()),
+                "Release" => assert_ne!(env.release_sec(), initial.release_sec()),
+                _ => unreachable!(),
+            }
+            assert!((0.0..=1.0).contains(&env.sustain_level()));
+        }
+    }
+
+    #[test]
+    fn voice_mode_selector_starts_from_the_supplied_mode_and_resets_held_keys() {
+        let (sender, receiver) = mpsc::channel();
+        let mut app = SynthApp::new(
+            sender,
+            Waveform::Sine,
+            VoiceMode::Legato,
+            Oscilloscope::new(48_000),
+            ADSR::default(),
+        );
+        app.set_voice_mode(VoiceMode::Legato);
+        assert!(receiver.try_recv().is_err());
+        app.handle_input(&[key(Key::A, true)], true, false);
+        assert!(matches!(
+            receiver.try_recv(),
+            Ok(SynthEvent::On { id: 60, .. })
+        ));
+        let ctx = egui::Context::default();
+        draw(&mut app, &ctx, vec![]);
+        let output = draw(&mut app, &ctx, vec![]);
+        click(&mut app, &ctx, text_position(&output, "Legato"));
+        let output = draw(&mut app, &ctx, vec![]);
+        click(&mut app, &ctx, text_position(&output, "Monophonic"));
+        assert_eq!(app.voice_mode, VoiceMode::Monophonic);
+        assert_eq!(app.keys.held_count(), 0);
+        assert!(matches!(
+            receiver.try_recv(),
+            Ok(SynthEvent::SetVoiceMode(VoiceMode::Monophonic))
+        ));
+        let output = draw(&mut app, &ctx, vec![]);
+        text_position(&output, "Monophonic");
+        // A release from before the mode change is ignored; a fresh press works.
+        app.handle_input(&[key(Key::A, false)], true, false);
+        assert!(receiver.try_recv().is_err());
+        app.handle_input(&[key(Key::A, true)], true, false);
+        assert!(matches!(
+            receiver.try_recv(),
+            Ok(SynthEvent::On { id: 60, .. })
+        ));
     }
 }

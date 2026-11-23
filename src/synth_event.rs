@@ -1,3 +1,5 @@
+use crate::envelope::ADSR;
+use crate::synth::VoiceMode;
 use crate::waveform::Waveform;
 
 pub(crate) enum SynthEvent {
@@ -5,4 +7,6 @@ pub(crate) enum SynthEvent {
     Off(u8),
     AllOff,
     SetWaveform(Waveform),
+    SetEnvelope(ADSR),
+    SetVoiceMode(VoiceMode),
 }

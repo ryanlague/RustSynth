@@ -29,6 +29,10 @@ impl Voice {
         self.waveform = waveform;
     }
 
+    pub(crate) fn set_envelope(&mut self, env: ADSR) {
+        self.env = env;
+    }
+
     pub(crate) fn oscillator_position(&self) -> Option<(f64, f64)> {
         if self.active && self.frequency > 0.0 {
             Some((self.frequency, self.phase))
@@ -50,7 +54,7 @@ impl Voice {
         self.frequency = note.frequency;
         self.amplitude = note.amplitude * global_amplitude;
         self.note_off_sec = note.duration_sec;
-        self.env = note.env.clone();
+        self.set_envelope(note.env);
 
         self.phase = 0.0;
         self.elapsed_samples = 0;
