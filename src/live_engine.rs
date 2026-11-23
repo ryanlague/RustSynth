@@ -10,11 +10,12 @@ use crate::{
     waveform::Waveform,
 };
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub(crate) struct SynthSettings {
     pub(crate) waveform: Waveform,
     pub(crate) mode: VoiceMode,
     pub(crate) env: ADSR,
+    pub(crate) octave_shift: i8,
 }
 
 /// A reusable instrument definition plus its live-keyboard voice pool.
@@ -69,6 +70,7 @@ pub(crate) struct TrackStatus {
     pub(crate) state: LoopState,
     pub(crate) armed: bool,
     pub(crate) muted: bool,
+    pub(crate) solo: bool,
     pub(crate) volume: f32,
 }
 
@@ -80,6 +82,7 @@ impl TrackStatus {
             state: LoopState::Stopped,
             armed: false,
             muted: false,
+            solo: false,
             volume: 1.0,
         }
     }
@@ -110,6 +113,21 @@ impl LoopMonitor {
             retired = node.next.take();
         }
         *self.status.lock().unwrap()
+    }
+    pub(crate) fn replace_tracks(&self, project: &crate::project::Project) {
+        *self.tracks.lock().unwrap() = project
+            .tracks
+            .iter()
+            .map(|t| TrackStatus {
+                id: t.id,
+                synth_id: t.synth_id,
+                state: LoopState::Stopped,
+                armed: false,
+                muted: t.muted,
+                solo: t.solo,
+                volume: t.volume,
+            })
+            .collect();
     }
     pub(crate) fn read_tracks(&self) -> Vec<TrackStatus> {
         self.tracks.lock().unwrap().clone()
@@ -142,6 +160,7 @@ pub(crate) struct LoopTrack {
     playback: Synth,
     looper: Looper,
     muted: bool,
+    solo: bool,
     volume: f32,
     next: Option<Box<LoopTrack>>,
 }
@@ -162,6 +181,7 @@ impl LoopTrack {
             playback,
             looper: Looper::new(LoopSettings::default(), sample_rate),
             muted: false,
+            solo: false,
             volume: 1.0,
             next: None,
         })
@@ -204,6 +224,7 @@ impl LiveEngine {
         let mut first = Instrument::new(
             1,
             SynthSettings {
+                octave_shift: 0,
                 waveform,
                 mode,
                 env: ADSR::default(),
@@ -234,6 +255,60 @@ impl LiveEngine {
         engine.publish_status();
         engine
     }
+    pub(crate) fn from_project(
+        project: &crate::project::Project,
+        rate: u32,
+        monitor: LoopMonitor,
+    ) -> Box<Self> {
+        let first = &project.synths[0];
+        let mut engine = Box::new(Self::new(
+            first.settings.waveform,
+            first.settings.mode,
+            rate,
+            LoopMonitor::default(),
+        ));
+        engine.monitor = monitor;
+        engine.instruments = None;
+        for saved in &project.synths {
+            let mut instrument = Instrument::new(saved.id, saved.settings);
+            instrument.next = engine.instruments.take();
+            engine.instruments = Some(instrument);
+        }
+        engine.selected_synth = project.selected_synth;
+        engine.keyboard = engine
+            .instrument_mut(project.selected_synth)
+            .unwrap()
+            .keyboard
+            .take()
+            .unwrap();
+        let settings = engine.instrument(project.selected_synth).unwrap().settings;
+        engine.waveform = settings.waveform;
+        engine.mode = settings.mode;
+        engine.transport.play(project.settings, rate);
+        engine.transport.stop();
+        engine.metronome.set_enabled(project.click_enabled);
+        engine.tracks = None;
+        for saved in project.tracks.iter().rev() {
+            let settings = engine.instrument(saved.synth_id).unwrap().settings;
+            let mut track = LoopTrack::new(
+                saved.id,
+                settings.waveform,
+                settings.mode,
+                settings.env,
+                rate,
+            );
+            track.synth_id = saved.synth_id;
+            track.muted = saved.muted;
+            track.solo = saved.solo;
+            track.volume = saved.volume;
+            track.looper.configure(project.settings, rate);
+            track.looper.restore(&saved.events);
+            track.next = engine.tracks.take();
+            engine.tracks = Some(track);
+        }
+        engine
+    }
+
     pub(crate) fn envelope(&self) -> ADSR {
         self.keyboard.envelope()
     }
@@ -311,6 +386,31 @@ impl LiveEngine {
     }
     pub(crate) fn handle(&mut self, event: SynthEvent) {
         match event {
+            SynthEvent::Snapshot(mut project, reply) => {
+                // Buffers were reserved by the UI; copying events never allocates here.
+                let result = if self.transport.running {
+                    Err("Stop playback before saving".into())
+                } else {
+                    for saved in &mut project.tracks {
+                        if let Some(track) = self.track(saved.id) {
+                            saved.synth_id = track.synth_id;
+                            saved.muted = track.muted;
+                            saved.solo = track.solo;
+                            saved.volume = track.volume;
+                            if track.looper.settings().beats == project.settings.beats {
+                                saved.events.extend_from_slice(track.looper.events());
+                            }
+                        }
+                    }
+                    Ok(project)
+                };
+                let _ = reply.try_send(result);
+            }
+            SynthEvent::ReplaceEngine(mut replacement, reply) => {
+                // Both engines are owned by boxes. The old engine is destroyed by UI.
+                std::mem::swap(self, &mut replacement);
+                let _ = reply.try_send(replacement);
+            }
             SynthEvent::AddSynth(mut instrument) => {
                 if self.instrument(instrument.id).is_some() {
                     return;
@@ -319,6 +419,26 @@ impl LiveEngine {
                 self.instruments = Some(instrument);
             }
             SynthEvent::SelectSynth(id) => self.select_synth(id),
+            SynthEvent::SetSynthSettings(settings) => {
+                // Apply a complete preset in one audio command, before rendering
+                // another sample. Other instruments and the transport are untouched.
+                self.release_keyboard();
+                let id = self.selected_synth;
+                let rate = self.sample_rate;
+                self.instrument_mut(id).unwrap().settings = settings;
+                self.waveform = settings.waveform;
+                self.mode = settings.mode;
+                self.keyboard.set_voice_mode(settings.mode, rate);
+                self.keyboard.set_waveform(settings.waveform);
+                self.keyboard.set_envelope(settings.env);
+                self.each_track(|track| {
+                    if track.synth_id == id {
+                        track.playback.set_voice_mode(settings.mode, rate);
+                        track.playback.set_waveform(settings.waveform);
+                        track.playback.set_envelope(settings.env);
+                    }
+                });
+            }
             SynthEvent::TrackSynth { id, synth_id } => {
                 let Some(settings) = self.instrument(synth_id).map(|node| node.settings) else {
                     return;
@@ -340,7 +460,12 @@ impl LiveEngine {
                 }
                 self.keys_held[id as usize] = Some(pitch);
                 self.each_track(|track| track.looper.record_event(LoopNoteEvent::On { id, pitch }));
-                Self::note_on(&mut self.keyboard, id, pitch, self.sample_rate);
+                let shift = self
+                    .instrument(self.selected_synth)
+                    .unwrap()
+                    .settings
+                    .octave_shift;
+                Self::note_on(&mut self.keyboard, id, pitch, shift, self.sample_rate);
             }
             SynthEvent::Off(id) => {
                 self.keys_held[id as usize] = None;
@@ -407,6 +532,11 @@ impl LiveEngine {
                     self.retiring = Some(track);
                 }
             }
+            SynthEvent::SoloTrack { id, solo } => {
+                if let Some(track) = self.track_mut(id) {
+                    track.solo = solo;
+                }
+            }
             SynthEvent::MuteTrack { id, muted } => {
                 if let Some(track) = self.track_mut(id) {
                     track.muted = muted;
@@ -417,6 +547,14 @@ impl LiveEngine {
                     if let Some(track) = self.track_mut(id) {
                         track.volume = volume.clamp(0.0, 1.0);
                     }
+                }
+            }
+            SynthEvent::SetBpm(bpm) => {
+                if bpm.is_finite() && (30.0..=300.0).contains(&bpm) {
+                    self.transport.set_bpm(bpm, self.sample_rate);
+                    let position = self.transport.position;
+                    let rate = self.sample_rate;
+                    self.each_track(|track| track.looper.set_bpm(bpm, position, rate));
                 }
             }
             SynthEvent::StopLoop => self.stop_loop(),
@@ -431,6 +569,10 @@ impl LiveEngine {
                         track.playback.set_waveform(waveform);
                     }
                 });
+            }
+            SynthEvent::SetOctaveShift(shift) => {
+                let id = self.selected_synth;
+                self.instrument_mut(id).unwrap().settings.octave_shift = shift.clamp(-3, 3);
             }
             SynthEvent::SetEnvelope(env) => {
                 let id = self.selected_synth;
@@ -470,11 +612,16 @@ impl LiveEngine {
             }
         }
     }
-    fn note_on(synth: &mut Synth, id: u8, pitch: u8, sample_rate: u32) {
-        let frequency = 440.0 * 2.0_f64.powf((f64::from(pitch) - 69.0) / 12.0);
+    fn note_on(synth: &mut Synth, id: u8, pitch: u8, octave_shift: i8, sample_rate: u32) {
+        let shifted_pitch = (i16::from(pitch) + 12 * i16::from(octave_shift)).clamp(0, 127);
+        let frequency = 440.0 * 2.0_f64.powf((f64::from(shifted_pitch) - 69.0) / 12.0);
         synth.note_on(id, frequency, 0.5, 0.25, sample_rate);
     }
+    fn has_solo(&self) -> bool {
+        std::iter::successors(self.tracks.as_deref(), |t| t.next.as_deref()).any(|t| t.solo)
+    }
     pub(crate) fn next_sample(&mut self) -> f32 {
+        let has_solo = self.has_solo();
         let rate = self.sample_rate;
         let mut mix = self.keyboard.next_sample(rate);
         let mut instruments = self.instruments.as_deref_mut();
@@ -484,18 +631,23 @@ impl LiveEngine {
             }
             instruments = instrument.next.as_deref_mut();
         }
+        let instruments = self.instruments.as_deref();
         let mut cursor = self.tracks.as_deref_mut();
         while let Some(track) = cursor {
             while let Some(event) = track.looper.next_event() {
                 match event {
                     LoopNoteEvent::On { id, pitch } => {
-                        Self::note_on(&mut track.playback, id, pitch, rate)
+                        let shift = std::iter::successors(instruments, |node| node.next.as_deref())
+                            .find(|node| node.id == track.synth_id)
+                            .map(|node| node.settings.octave_shift)
+                            .unwrap_or(0);
+                        Self::note_on(&mut track.playback, id, pitch, shift, rate)
                     }
                     LoopNoteEvent::Off { id } => track.playback.note_off(id, 0.25, rate),
                 }
             }
             let sample = track.playback.next_sample(rate);
-            if !track.muted {
+            if !track.muted && (!has_solo || track.solo) {
                 mix += sample * f64::from(track.volume);
             }
             cursor = track.next.as_deref_mut();
@@ -504,7 +656,7 @@ impl LiveEngine {
         while link.is_some() {
             let track = link.as_mut().unwrap();
             let sample = track.playback.next_sample(rate);
-            if !track.muted {
+            if !track.muted && (!has_solo || track.solo) {
                 mix += sample * f64::from(track.volume);
             }
             if track.playback.is_active() {
@@ -551,11 +703,13 @@ impl LiveEngine {
     }
     pub(crate) fn scope_trigger(&self) -> bool {
         let tracks = std::iter::successors(self.tracks.as_deref(), |track| track.next.as_deref())
-            .filter(|track| !track.muted && track.volume > 0.0)
+            .filter(|track| !track.muted && (!self.has_solo() || track.solo) && track.volume > 0.0)
             .filter_map(|track| track.playback.lowest_oscillator());
         let retiring =
             std::iter::successors(self.retiring.as_deref(), |track| track.next.as_deref())
-                .filter(|track| !track.muted && track.volume > 0.0)
+                .filter(|track| {
+                    !track.muted && (!self.has_solo() || track.solo) && track.volume > 0.0
+                })
                 .filter_map(|track| track.playback.lowest_oscillator());
         let other_synths =
             std::iter::successors(self.instruments.as_deref(), |node| node.next.as_deref())
@@ -592,6 +746,7 @@ impl LiveEngine {
                         state: track.looper.state(),
                         armed: track.looper.armed(),
                         muted: track.muted,
+                        solo: track.solo,
                         volume: track.volume,
                     };
                 }
@@ -629,10 +784,302 @@ mod tests {
     use super::*;
 
     #[test]
+    fn tempo_changes_preserve_playback_phase_events_and_track_sync() {
+        let (mut engine, _) = recorded(VoiceMode::Polyphonic);
+        add_track(&mut engine, 2);
+        for _ in 0..400 {
+            engine.next_sample();
+        }
+        let events = engine.track(1).unwrap().looper.events_for_test();
+        engine.handle(SynthEvent::ArmTrack(2));
+        engine.handle(SynthEvent::SetBpm(150.0));
+        assert!(engine.transport.running);
+        assert_eq!(engine.transport.position, 800);
+        assert_eq!(engine.transport.length, 3200);
+        assert_eq!(engine.track(1).unwrap().looper.events(), events);
+        assert_eq!(engine.track(2).unwrap().looper.position(), 800);
+        assert!(engine.track(2).unwrap().looper.armed());
+        // The existing note keeps its pitch and stays held until beat 0.5.
+        let frequency = engine
+            .track(1)
+            .unwrap()
+            .playback
+            .lowest_oscillator()
+            .unwrap()
+            .0;
+        for _ in 0..800 {
+            engine.next_sample();
+        }
+        assert_eq!(
+            engine
+                .track(1)
+                .unwrap()
+                .playback
+                .lowest_oscillator()
+                .unwrap()
+                .0,
+            frequency
+        );
+        for _ in 0..50 {
+            engine.next_sample();
+        }
+        assert!(!engine.track(1).unwrap().playback.is_active());
+        for _ in 1650..3200 {
+            engine.next_sample();
+        }
+        assert_eq!(engine.transport.position, 0);
+        assert_eq!(
+            engine.track(2).unwrap().looper.state(),
+            LoopState::Recording
+        );
+        engine.next_sample();
+        assert!(engine.track(1).unwrap().playback.is_active());
+        let position = engine.transport.position;
+        engine.handle(SynthEvent::SetBpm(f64::NAN));
+        engine.handle(SynthEvent::SetBpm(0.0));
+        assert_eq!(engine.transport.position, position);
+        assert_eq!(engine.transport.settings.bpm, 150.0);
+    }
+
+    #[test]
+    fn tempo_can_change_during_recording_without_losing_held_notes() {
+        let mut engine = LiveEngine::new(
+            Waveform::Sine,
+            VoiceMode::Polyphonic,
+            8000,
+            LoopMonitor::default(),
+        );
+        engine.handle(SynthEvent::PlayLoop(LoopSettings {
+            bpm: 300.0,
+            beats: 1,
+        }));
+        engine.handle(SynthEvent::ArmTrack(1));
+        for _ in 0..2000 {
+            engine.next_sample();
+        }
+        engine.handle(SynthEvent::On { id: 60, pitch: 60 });
+        engine.handle(SynthEvent::SetBpm(150.0));
+        for _ in 0..400 {
+            engine.next_sample();
+        }
+        engine.handle(SynthEvent::Off(60));
+        engine.handle(SynthEvent::StopLoop);
+        let events = engine.track(1).unwrap().looper.events();
+        assert_eq!(events.len(), 2);
+        assert_eq!(events[0].position_beats, 0.25);
+        assert_eq!(events[1].position_beats, 0.375);
+    }
+
+    #[test]
+    fn solo_gates_audio_without_changing_clock_and_supports_multiple_tracks() {
+        let (mut engine, _) = recorded(VoiceMode::Polyphonic);
+        add_track(&mut engine, 2);
+        let events = engine.track(1).unwrap().looper.events_for_test();
+        engine.track_mut(2).unwrap().looper.restore(&events);
+        let (mut reference, _) = recorded(VoiceMode::Polyphonic);
+        engine.handle(SynthEvent::SoloTrack { id: 2, solo: true });
+        for _ in 0..1600 {
+            assert_eq!(engine.next_sample(), reference.next_sample());
+        }
+        engine.handle(SynthEvent::SoloTrack { id: 1, solo: true });
+        for _ in 0..1600 {
+            assert_eq!(engine.next_sample(), reference.next_sample() * 2.0);
+        }
+        engine.handle(SynthEvent::MuteTrack { id: 2, muted: true });
+        for _ in 0..1600 {
+            assert_eq!(engine.next_sample(), reference.next_sample());
+        }
+        engine.handle(SynthEvent::SoloTrack { id: 1, solo: false });
+        for _ in 0..1600 {
+            assert_eq!(engine.next_sample(), 0.0);
+            reference.next_sample();
+        }
+        engine.handle(SynthEvent::SoloTrack { id: 2, solo: false });
+        for _ in 0..1600 {
+            assert_eq!(engine.next_sample(), reference.next_sample());
+        }
+        assert_eq!(engine.transport.position, reference.transport.position);
+    }
+
+    #[test]
+    fn stopped_snapshot_and_engine_replacement_preserve_recorded_playback() {
+        let (mut engine, take) = recorded(VoiceMode::Polyphonic);
+        engine.handle(SynthEvent::StopLoop);
+        let settings = engine.transport.settings;
+        let project = Box::new(crate::project::Project {
+            version: 2,
+            sample_rate: 8000,
+            settings,
+            click_enabled: false,
+            selected_synth: 1,
+            synths: vec![crate::project::ProjectSynth {
+                id: 1,
+                name: "Original".into(),
+                settings: engine.instrument(1).unwrap().settings,
+            }],
+            tracks: vec![crate::project::ProjectTrack {
+                id: 1,
+                synth_id: 1,
+                muted: false,
+                solo: false,
+                volume: 1.0,
+                events: Vec::with_capacity(16_640),
+            }],
+        });
+        let (tx, rx) = std::sync::mpsc::sync_channel(1);
+        engine.handle(SynthEvent::Snapshot(project, tx));
+        let project = rx.try_recv().unwrap().unwrap();
+        project.validate().unwrap();
+        assert_eq!(project.tracks[0].events.len(), 2);
+        let replacement = project.prepare(8000, engine.monitor.clone());
+        let (tx, rx) = std::sync::mpsc::sync_channel(1);
+        engine.handle(SynthEvent::ReplaceEngine(replacement, tx));
+        drop(rx.try_recv().unwrap());
+        engine.handle(SynthEvent::PlayLoop(settings));
+        assert_eq!(
+            take,
+            (0..1600).map(|_| engine.next_sample()).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn bass_default_octave_combines_with_keyboard_modifiers_and_keeps_releases_safe() {
+        let mut engine = LiveEngine::new(
+            Waveform::Sine,
+            VoiceMode::Polyphonic,
+            8_000,
+            LoopMonitor::default(),
+        );
+        let bass = crate::presets::synth_presets()
+            .into_iter()
+            .find(|preset| preset.name == "Bass")
+            .unwrap();
+        let shift = bass.settings.octave_shift;
+        assert!(shift < 0);
+        engine.handle(SynthEvent::SetSynthSettings(bass.settings));
+        engine.handle(SynthEvent::On { id: 60, pitch: 60 });
+        let base = 440.0 * 2.0_f64.powf((60.0 + 12.0 * f64::from(shift) - 69.0) / 12.0);
+        assert!((engine.keyboard.lowest_oscillator().unwrap().0 - base).abs() < 1e-9);
+        engine.handle(SynthEvent::Off(60));
+        // Shift is already represented by +12 in the incoming keyboard pitch.
+        engine.handle(SynthEvent::On { id: 60, pitch: 72 });
+        let upper = base * 2.0;
+        assert!((engine.keyboard.lowest_oscillator().unwrap().0 - upper).abs() < 1e-9);
+        engine.handle(SynthEvent::Off(60));
+        engine.handle(SynthEvent::On { id: 60, pitch: 48 });
+        let lower = base / 2.0;
+        assert!((engine.keyboard.lowest_oscillator().unwrap().0 - lower).abs() < 1e-9);
+        // A setting change leaves this held note's frequency alone.
+        engine.handle(SynthEvent::SetOctaveShift(0));
+        assert!((engine.keyboard.lowest_oscillator().unwrap().0 - lower).abs() < 1e-9);
+        engine.handle(SynthEvent::Off(60));
+        for _ in 0..1_000 {
+            engine.next_sample();
+        }
+        assert!(!engine.keyboard.is_active());
+    }
+
+    #[test]
+    fn recorded_pitch_stays_unshifted_and_playback_applies_the_current_synth_shift_once() {
+        let mut engine = LiveEngine::new(
+            Waveform::Sine,
+            VoiceMode::Polyphonic,
+            8_000,
+            LoopMonitor::default(),
+        );
+        engine.handle(SynthEvent::SetEnvelope(ADSR::new(0.0, 0.0, 1.0, 0.005)));
+        engine.handle(SynthEvent::SetOctaveShift(-1));
+        engine.handle(SynthEvent::SetClick(false));
+        engine.handle(SynthEvent::PlayLoop(LoopSettings {
+            bpm: 300.0,
+            beats: 1,
+        }));
+        engine.handle(SynthEvent::ArmTrack(1));
+        for _ in 0..1_600 {
+            engine.next_sample();
+        }
+        engine.handle(SynthEvent::On { id: 60, pitch: 60 });
+        for _ in 0..400 {
+            engine.next_sample();
+        }
+        engine.handle(SynthEvent::Off(60));
+        for _ in 400..1_600 {
+            engine.next_sample();
+        }
+        let events = engine.track(1).unwrap().looper.events_for_test();
+        assert!(matches!(
+            events[0].event,
+            LoopNoteEvent::On { id: 60, pitch: 60 }
+        ));
+        engine.next_sample();
+        let c3 = 440.0 * 2.0_f64.powf((48.0 - 69.0) / 12.0);
+        assert_eq!(
+            engine
+                .track(1)
+                .unwrap()
+                .playback
+                .lowest_oscillator()
+                .unwrap()
+                .0,
+            c3
+        );
+        engine.handle(SynthEvent::SetOctaveShift(1));
+        for _ in 1..1_600 {
+            engine.next_sample();
+        }
+        engine.next_sample();
+        let c5 = 440.0 * 2.0_f64.powf((72.0 - 69.0) / 12.0);
+        assert_eq!(
+            engine
+                .track(1)
+                .unwrap()
+                .playback
+                .lowest_oscillator()
+                .unwrap()
+                .0,
+            c5
+        );
+        assert_eq!(engine.track(1).unwrap().looper.events_for_test(), events);
+    }
+
+    #[test]
+    fn applying_a_preset_changes_only_its_instrument_without_stopping_transport() {
+        let (mut engine, _) = recorded(VoiceMode::Polyphonic);
+        let (mut reference, _) = recorded(VoiceMode::Polyphonic);
+        engine.handle(SynthEvent::AddSynth(Instrument::new(
+            2,
+            engine.instrument(1).unwrap().settings,
+        )));
+        engine.handle(SynthEvent::SelectSynth(2));
+        add_track(&mut engine, 2);
+        engine.handle(SynthEvent::TrackSynth { id: 2, synth_id: 2 });
+        let preset = crate::presets::synth_presets()
+            .into_iter()
+            .find(|preset| preset.name == "Bass")
+            .unwrap();
+        engine.handle(SynthEvent::SetSynthSettings(preset.settings));
+        assert_eq!(engine.instrument(2).unwrap().settings, preset.settings);
+        assert_eq!(
+            engine.track(2).unwrap().playback.envelope(),
+            preset.settings.env
+        );
+        assert_eq!(
+            engine.instrument(1).unwrap().settings,
+            reference.instrument(1).unwrap().settings
+        );
+        assert!(engine.transport.running);
+        for _ in 0..1_600 {
+            assert_eq!(engine.next_sample(), reference.next_sample());
+        }
+        assert_eq!(engine.transport.position, reference.transport.position);
+    }
+
+    #[test]
     fn multiple_tracks_share_one_synths_settings_without_affecting_other_synths() {
         let (mut engine, _) = recorded(VoiceMode::Polyphonic);
         let (mut reference, _) = recorded(VoiceMode::Polyphonic);
         let noise = SynthSettings {
+            octave_shift: 0,
             waveform: Waveform::WhiteNoise,
             mode: VoiceMode::Polyphonic,
             env: ADSR::new(0.0, 0.1, 0.0, 0.03),
@@ -678,6 +1125,7 @@ mod tests {
     fn track_routing_changes_sound_settings_without_changing_the_shared_clock() {
         let (mut engine, _) = recorded(VoiceMode::Polyphonic);
         let settings = SynthSettings {
+            octave_shift: 0,
             waveform: Waveform::FilteredNoise,
             mode: VoiceMode::Polyphonic,
             env: ADSR::new(0.0, 0.1, 0.0, 0.03),
@@ -721,6 +1169,7 @@ mod tests {
         engine.handle(SynthEvent::AddSynth(Instrument::new(
             2,
             SynthSettings {
+                octave_shift: 0,
                 waveform: Waveform::Triangle,
                 mode: VoiceMode::Legato,
                 env: ADSR::default(),

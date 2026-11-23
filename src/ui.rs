@@ -8,16 +8,13 @@ use crate::{
     live_engine::{Instrument, LoopMonitor, LoopStatus, LoopTrack, SynthSettings},
     looper::{LoopSettings, LoopState},
     oscilloscope::Oscilloscope,
+    presets::{SynthPreset, synth_presets},
     synth::VoiceMode,
     synth_event::SynthEvent,
     waveform::Waveform,
 };
 
-struct NamedSynth {
-    id: u64,
-    name: String,
-    settings: SynthSettings,
-}
+type NamedSynth = crate::project::ProjectSynth;
 
 struct SynthApp {
     sender: Sender<SynthEvent>,
@@ -25,7 +22,11 @@ struct SynthApp {
     waveform: Waveform,
     voice_mode: VoiceMode,
     env: ADSR,
+    octave_shift: i8,
     focused: bool,
+    show_how_to: bool,
+    show_project: bool,
+    synth_expanded: bool,
     scope: Oscilloscope,
     scope_samples: Vec<f32>,
     trigger_enabled: bool,
@@ -36,7 +37,15 @@ struct SynthApp {
     next_track_id: u64,
     synths: Vec<NamedSynth>,
     selected_synth: u64,
+    selected_track: Option<u64>,
     next_synth_id: u64,
+    project_path: String,
+    project_message: String,
+    pending_save: Option<(
+        String,
+        std::sync::mpsc::Receiver<Result<Box<crate::project::Project>, String>>,
+    )>,
+    pending_load: Option<std::sync::mpsc::Receiver<Box<crate::live_engine::LiveEngine>>>,
 }
 
 impl SynthApp {
@@ -53,7 +62,11 @@ impl SynthApp {
             waveform,
             voice_mode,
             env,
+            octave_shift: 0,
             focused: true,
+            show_how_to: false,
+            show_project: false,
+            synth_expanded: true,
             scope_samples: vec![0.0; scope.sample_count()],
             scope,
             trigger_enabled: false,
@@ -66,18 +79,160 @@ impl SynthApp {
                 id: 1,
                 name: "Synth 1".into(),
                 settings: SynthSettings {
+                    octave_shift: 0,
                     waveform,
                     mode: voice_mode,
                     env,
                 },
             }],
             selected_synth: 1,
+            selected_track: None,
             next_synth_id: 2,
+            project_path: "saved_projects/recording.rustsynth.json".into(),
+            project_message: String::new(),
+            pending_save: None,
+            pending_load: None,
+        }
+    }
+
+    fn poll_project(&mut self) {
+        if let Some((path, receiver)) = &self.pending_save {
+            match receiver.try_recv() {
+                Ok(result) => {
+                    self.project_message = match result.and_then(|p| p.write(path)) {
+                        Ok(()) => {
+                            self.show_project = false;
+                            format!("Saved {path}")
+                        }
+                        Err(e) => format!("Save failed: {e}"),
+                    };
+                    self.pending_save = None;
+                }
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    self.project_message = "Audio disconnected".into();
+                    self.pending_save = None;
+                }
+                Err(_) => {}
+            }
+        }
+        if let Some(receiver) = &self.pending_load {
+            match receiver.try_recv() {
+                Ok(old_engine) => {
+                    drop(old_engine);
+                    self.pending_load = None;
+                    self.project_message = format!(
+                        "Loaded {} tracks. Press Play to hear the recording.",
+                        self.loop_monitor.read_tracks().len()
+                    );
+                    self.show_project = false;
+                }
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    self.pending_load = None;
+                    self.project_message = "Audio disconnected".into();
+                }
+                Err(_) => {}
+            }
+        }
+    }
+    fn save_project(&mut self) {
+        use crate::project::{Project, ProjectTrack};
+        let project = Box::new(Project {
+            version: 2,
+            sample_rate: self.loop_status.sample_rate,
+            settings: self.loop_settings,
+            click_enabled: self.click_enabled,
+            selected_synth: self.selected_synth,
+            synths: self.synths.clone(),
+            tracks: self
+                .loop_monitor
+                .read_tracks()
+                .iter()
+                .map(|t| ProjectTrack {
+                    id: t.id,
+                    synth_id: t.synth_id,
+                    muted: t.muted,
+                    solo: t.solo,
+                    volume: t.volume,
+                    events: Vec::with_capacity(16_640),
+                })
+                .collect(),
+        });
+        let (sender, receiver) = std::sync::mpsc::sync_channel(1);
+        if self
+            .sender
+            .send(SynthEvent::Snapshot(project, sender))
+            .is_ok()
+        {
+            self.pending_save = Some((self.project_path.clone(), receiver));
+            self.project_message = "Saving…".into();
+        } else {
+            self.project_message = "Audio disconnected".into();
+        }
+    }
+    fn load_project(&mut self) -> Result<(), String> {
+        let project = crate::project::Project::read(&self.project_path)
+            .map_err(|e| format!("{}: {e}", self.project_path))?;
+        let replacement = project.prepare(self.loop_status.sample_rate, self.loop_monitor.clone());
+        let (sender, receiver) = std::sync::mpsc::sync_channel(1);
+        self.sender
+            .send(SynthEvent::ReplaceEngine(replacement, sender))
+            .map_err(|_| "Audio disconnected".to_string())?;
+        self.keys.clear();
+        self.selected_track = None;
+        self.loop_monitor.replace_tracks(&project);
+        self.loop_settings = project.settings;
+        self.click_enabled = project.click_enabled;
+        self.next_track_id = project.tracks.iter().map(|t| t.id).max().unwrap_or(0) + 1;
+        self.next_synth_id = project.synths.iter().map(|s| s.id).max().unwrap() + 1;
+        self.selected_synth = project.selected_synth;
+        let settings = project
+            .synths
+            .iter()
+            .find(|s| s.id == project.selected_synth)
+            .unwrap()
+            .settings;
+        self.waveform = settings.waveform;
+        self.voice_mode = settings.mode;
+        self.env = settings.env;
+        self.octave_shift = settings.octave_shift;
+        self.synths = project.synths;
+        self.pending_load = Some(receiver);
+        self.project_message = "Loading…".into();
+        Ok(())
+    }
+    fn project_controls(&mut self, ui: &mut egui::Ui) {
+        ui.separator();
+        ui.label("Project file");
+        ui.text_edit_singleline(&mut self.project_path);
+        ui.horizontal(|ui| {
+            let stopped = self.loop_status.state == LoopState::Stopped;
+            if ui
+                .add_enabled(stopped, egui::Button::new("Save project"))
+                .clicked()
+            {
+                self.save_project();
+            }
+            if ui
+                .add_enabled(stopped, egui::Button::new("Load project"))
+                .clicked()
+            {
+                if let Err(e) = self.load_project() {
+                    self.project_message = format!("Load failed: {e}");
+                }
+            }
+            if !stopped {
+                ui.weak("Stop playback to save or load.");
+            }
+        });
+        ui.weak("Loading replaces the current session. Save it first if you want to keep it.");
+        if !self.project_message.is_empty() {
+            ui.label(&self.project_message);
         }
     }
 
     fn remember_synth_settings(&mut self) {
         let settings = SynthSettings {
+            octave_shift: self.octave_shift,
             waveform: self.waveform,
             mode: self.voice_mode,
             env: self.env,
@@ -93,6 +248,7 @@ impl SynthApp {
         if self.selected_synth == id {
             return;
         }
+        self.selected_track = None;
         let Some(settings) = self
             .synths
             .iter()
@@ -106,6 +262,7 @@ impl SynthApp {
         self.waveform = settings.waveform;
         self.voice_mode = settings.mode;
         self.env = settings.env;
+        self.octave_shift = settings.octave_shift;
         let _ = self.sender.send(SynthEvent::SelectSynth(id));
     }
 
@@ -113,6 +270,7 @@ impl SynthApp {
         let id = self.next_synth_id;
         self.next_synth_id = id.checked_add(1).expect("Synth ID exhausted");
         let settings = SynthSettings {
+            octave_shift: self.octave_shift,
             waveform: self.waveform,
             mode: self.voice_mode,
             env: self.env,
@@ -164,7 +322,87 @@ impl SynthApp {
                 .unwrap();
             ui.text_edit_singleline(&mut synth.name);
         });
+        self.preset_controls(ui);
+        ui.horizontal(|ui| {
+            ui.label("Octave shift");
+            let mut shift = self.octave_shift;
+            if ui
+                .add(egui::DragValue::new(&mut shift).range(-3..=3).speed(0.1))
+                .changed()
+            {
+                self.set_octave_shift(shift);
+            }
+        });
         ui.weak("Edit this synth’s sound. Tracks linked to it share these settings.");
+    }
+
+    fn apply_preset(&mut self, preset: SynthPreset) {
+        let current = SynthSettings {
+            octave_shift: self.octave_shift,
+            waveform: self.waveform,
+            mode: self.voice_mode,
+            env: self.env,
+        };
+        if current == preset.settings {
+            return;
+        }
+        self.keys.clear();
+        self.waveform = preset.settings.waveform;
+        self.voice_mode = preset.settings.mode;
+        self.env = preset.settings.env;
+        self.octave_shift = preset.settings.octave_shift;
+        self.remember_synth_settings();
+        let _ = self
+            .sender
+            .send(SynthEvent::SetSynthSettings(preset.settings));
+    }
+
+    fn preset_controls(&mut self, ui: &mut egui::Ui) {
+        let presets = synth_presets();
+        let settings = SynthSettings {
+            octave_shift: self.octave_shift,
+            waveform: self.waveform,
+            mode: self.voice_mode,
+            env: self.env,
+        };
+        let current_name = presets
+            .iter()
+            .find(|preset| preset.settings == settings)
+            .map(|preset| preset.name)
+            .unwrap_or("Custom");
+        let mut selected = None;
+        ui.horizontal(|ui| {
+            ui.label("Preset");
+            let selector = egui::ComboBox::from_id_salt("synth_preset")
+                .selected_text(current_name)
+                .width(180.0)
+                .show_ui(ui, |ui| {
+                    for preset in presets {
+                        if ui
+                            .selectable_label(preset.settings == settings, preset.name)
+                            .on_hover_text(preset.description)
+                            .clicked()
+                        {
+                            selected = Some(preset);
+                        }
+                    }
+                });
+            if selected.is_some() {
+                selector.response.surrender_focus();
+            }
+        });
+        if let Some(preset) = selected {
+            self.apply_preset(preset);
+        }
+    }
+
+    fn set_octave_shift(&mut self, shift: i8) {
+        let shift = shift.clamp(-3, 3);
+        if shift != self.octave_shift {
+            self.octave_shift = shift;
+            self.remember_synth_settings();
+            let _ = self.sender.send(SynthEvent::SetOctaveShift(shift));
+        }
     }
 
     fn set_voice_mode(&mut self, voice_mode: VoiceMode) {
@@ -242,17 +480,16 @@ impl SynthApp {
         }
     }
 
+    fn select_track(&mut self, id: u64) {
+        if let Some(track) = self.loop_monitor.read_tracks().iter().find(|t| t.id == id) {
+            self.select_synth(track.synth_id);
+            self.selected_track = Some(id);
+        }
+    }
+
     fn arm_track(&mut self, id: u64) {
+        self.select_track(id);
         if self.loop_status.state != LoopState::Stopped {
-            if let Some(synth_id) = self
-                .loop_monitor
-                .read_tracks()
-                .iter()
-                .find(|track| track.id == id)
-                .map(|track| track.synth_id)
-            {
-                self.select_synth(synth_id);
-            }
             let _ = self.sender.send(SynthEvent::ArmTrack(id));
         }
     }
@@ -282,9 +519,17 @@ impl SynthApp {
             .show(ui, |ui| {
                 for mut track in tracks {
                     ui.push_id(track.id, |ui| {
-                        ui.horizontal(|ui| {
+                        let row = ui.horizontal(|ui| {
                             ui.spacing_mut().slider_width = 60.0;
-                            ui.label(format!("Track {}", track.id));
+                            if ui
+                                .selectable_label(
+                                    self.selected_track == Some(track.id),
+                                    format!("Track {}", track.id),
+                                )
+                                .clicked()
+                            {
+                                self.select_track(track.id);
+                            }
                             let state = match track.state {
                                 LoopState::Recording => "Recording",
                                 _ if track.armed => "Armed",
@@ -313,6 +558,10 @@ impl SynthApp {
                                 });
                             if previous_synth != track.synth_id {
                                 self.loop_monitor.assign_synth(track.id, track.synth_id);
+                                if self.selected_track == Some(track.id) {
+                                    self.select_synth(track.synth_id);
+                                    self.selected_track = Some(track.id);
+                                }
                                 let _ = self.sender.send(SynthEvent::TrackSynth {
                                     id: track.id,
                                     synth_id: track.synth_id,
@@ -326,6 +575,12 @@ impl SynthApp {
                                 .clicked()
                             {
                                 self.arm_track(track.id);
+                            }
+                            if ui.checkbox(&mut track.solo, "Solo").changed() {
+                                let _ = self.sender.send(SynthEvent::SoloTrack {
+                                    id: track.id,
+                                    solo: track.solo,
+                                });
                             }
                             if ui.checkbox(&mut track.muted, "Mute").changed() {
                                 let _ = self.sender.send(SynthEvent::MuteTrack {
@@ -347,10 +602,22 @@ impl SynthApp {
                                 });
                             }
                             if ui.button("Delete").clicked() {
+                                if self.selected_track == Some(track.id) {
+                                    self.selected_track = None;
+                                }
                                 self.loop_monitor.remove_track(track.id);
                                 let _ = self.sender.send(SynthEvent::DeleteTrack(track.id));
                             }
                         });
+                        // Clicking any part of the row selects its linked instrument.
+                        if ui.input(|i| {
+                            i.pointer.any_click()
+                                && i.pointer
+                                    .interact_pos()
+                                    .is_some_and(|p| row.response.rect.contains(p))
+                        }) {
+                            self.select_track(track.id);
+                        }
                     });
                 }
             });
@@ -363,14 +630,19 @@ impl SynthApp {
         ui.strong("Loop");
         let stopped = self.loop_status.state == LoopState::Stopped;
         ui.horizontal(|ui| {
-            ui.add_enabled_ui(stopped, |ui| {
-                ui.label("BPM");
-                ui.add(
+            ui.label("BPM");
+            if ui
+                .add(
                     egui::DragValue::new(&mut self.loop_settings.bpm)
                         .range(30.0..=300.0)
                         .speed(0.1)
                         .max_decimals(1),
-                );
+                )
+                .changed()
+            {
+                let _ = self.sender.send(SynthEvent::SetBpm(self.loop_settings.bpm));
+            }
+            ui.add_enabled_ui(stopped, |ui| {
                 ui.label("Beats");
                 ui.add(egui::DragValue::new(&mut self.loop_settings.beats).range(1..=64));
             });
@@ -460,6 +732,7 @@ impl SynthApp {
                             Key::Num4 => Some(Waveform::Sawtooth),
                             Key::Num5 => Some(Waveform::WhiteNoise),
                             Key::Num6 => Some(Waveform::FilteredNoise),
+                            Key::Num7 => Some(Waveform::Kick),
                             _ => None,
                         };
                         if let Some(waveform) = waveform {
@@ -483,6 +756,15 @@ impl SynthApp {
 
 impl SynthApp {
     fn update_ui(&mut self, ctx: &egui::Context) {
+        let project_was_open = self.show_project;
+        self.poll_project();
+        if project_was_open && !self.show_project {
+            ctx.memory_mut(|memory| {
+                if let Some(id) = memory.focused() {
+                    memory.surrender_focus(id);
+                }
+            });
+        }
         // Save the original events before widgets consume navigation keys.
         let (events, focused, closing) = ctx.input(|input| {
             (
@@ -491,7 +773,10 @@ impl SynthApp {
                 input.viewport().close_requested(),
             )
         });
-        let captured_before = ctx.wants_keyboard_input() || egui::Popup::is_any_open(ctx);
+        let captured_before = self.show_how_to
+            || self.show_project
+            || ctx.wants_keyboard_input()
+            || egui::Popup::is_any_open(ctx);
         self.loop_status = self.loop_monitor.read();
         let mut selected_waveform = self.waveform;
         let mut selected_voice_mode = self.voice_mode;
@@ -500,11 +785,49 @@ impl SynthApp {
             .snapshot(&mut self.scope_samples, self.trigger_enabled);
         ctx.request_repaint_after(std::time::Duration::from_millis(33));
 
+        egui::TopBottomPanel::top("app_header").show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                ui.heading("RustSynth");
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.menu_button("☰", |ui| {
+                        if ui.button("Save / Load").clicked() {
+                            self.show_project = true;
+                            self.show_how_to = false;
+                            self.release_all();
+                            ui.close();
+                        }
+                        if ui.button("How to").clicked() {
+                            self.show_project = false;
+                            self.show_how_to = true;
+                            self.release_all();
+                            ui.close();
+                        }
+                    })
+                    .response
+                    .on_hover_text("Menu");
+                });
+            });
+        });
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::vertical().id_salt("main_controls").show(ui, |ui| {
+            if self.pending_save.is_some() || self.pending_load.is_some() { ui.disable(); }
             ui.add_space(12.0);
-            ui.heading("RustSynth");
             ui.label("A small synthesizer, built in Rust.");
+            ui.horizontal_wrapped(|ui| {
+                let label = if self.synth_expanded { "▼ Synths" } else { "▶ Synths" };
+                if ui.button(label).clicked() { self.synth_expanded = !self.synth_expanded; }
+                if !self.synth_expanded {
+                    let mut selected = self.selected_synth;
+                    for synth in &self.synths {
+                        ui.selectable_value(&mut selected, synth.id, &synth.name);
+                    }
+                    self.select_synth(selected);
+                    selected_waveform = self.waveform;
+                    selected_voice_mode = self.voice_mode;
+                    edited_synth = self.selected_synth;
+                }
+            });
+            if self.synth_expanded {
                 self.synth_controls(ui);
                 selected_waveform = self.waveform;
                 selected_voice_mode = self.voice_mode;
@@ -523,6 +846,7 @@ impl SynthApp {
                             Waveform::Sawtooth,
                             Waveform::WhiteNoise,
                             Waveform::FilteredNoise,
+                            Waveform::Kick,
                         ] {
                             ui.selectable_value(&mut selected_waveform, waveform, waveform.name());
                         }
@@ -530,7 +854,7 @@ impl SynthApp {
                 if selected_waveform != self.waveform {
                     selector.response.surrender_focus();
                 }
-                ui.weak("1 / 2 / 3 / 4 / 5 / 6");
+                ui.weak("1 / 2 / 3 / 4 / 5 / 6 / 7");
             });
             ui.horizontal(|ui| {
                 ui.label("Voice mode");
@@ -547,6 +871,9 @@ impl SynthApp {
                 }
                 selector.response.on_hover_text("Polyphonic: chords. Monophonic: one note with a retriggered envelope. Legato: one note with a continuous envelope. Changes affect only this synth and its linked tracks. Changing mode releases their notes; the shared loop clock keeps running.");
             });
+            ui.add_space(12.0);
+            self.envelope_controls(ui);
+            }
             ui.add_space(16.0);
             ui.horizontal(|ui| {
                 ui.weak("Live output · 25 ms · 4× display gain");
@@ -555,45 +882,73 @@ impl SynthApp {
             });
             waveform_preview(ui, &self.scope_samples);
             ui.add_space(12.0);
-            self.envelope_controls(ui);
-            ui.add_space(12.0);
             self.loop_controls(ui);
-            ui.add_space(16.0);
-            ui.separator();
-            ui.add_space(10.0);
-            let play_area = egui::Frame::group(ui.style()).show(ui, |ui| {
-                ui.set_min_width(ui.available_width());
-                ui.strong("Play with your keyboard");
-                ui.monospace("Black keys    W  E     T  Y  U     O  P");
-                ui.monospace("White keys   A  S  D  F  G  H  J  K  L  ;  '");
-                ui.label("Shift: octave up. Control: octave down. Hold multiple keys for chords.");
-                ui.label("Click here to return to playing after keyboard navigation.");
-                ui.weak(format!(
-                    "{} keys held · Escape to exit",
-                    self.keys.held_count()
-                ));
+            if !self.project_message.is_empty() {
+                ui.label(&self.project_message);
+            }
             });
-            let response = ui.interact(
-                play_area.response.rect,
-                ui.id().with("play_area"),
-                egui::Sense::click(),
-            );
-            if response.clicked() {
+        });
+
+        let modal_was_open = self.show_how_to || self.show_project;
+        if self.show_project {
+            let modal = egui::Modal::new(egui::Id::new("save_load_project")).show(ctx, |ui| {
+                ui.set_width(440.0);
+                ui.heading("Save / Load project");
+                ui.add_enabled_ui(
+                    self.pending_save.is_none() && self.pending_load.is_none(),
+                    |ui| {
+                        self.project_controls(ui);
+                    },
+                );
+                ui.add_space(8.0);
+                if ui.button("Close").clicked() {
+                    ui.close();
+                }
+            });
+            if modal.should_close() {
+                self.show_project = false;
                 ctx.memory_mut(|memory| {
                     if let Some(id) = memory.focused() {
                         memory.surrender_focus(id);
                     }
                 });
             }
+        }
+        if self.show_how_to {
+            let modal = egui::Modal::new(egui::Id::new("how_to")).show(ctx, |ui| {
+                ui.set_max_width(460.0);
+                ui.heading("Play with your keyboard");
+                ui.add_space(8.0);
+                ui.monospace("Black keys    W  E     T  Y  U     O  P");
+                ui.monospace("White keys   A  S  D  F  G  H  J  K  L  ;  '");
+                ui.label("Shift: octave up. Control: octave down. Hold multiple keys for chords.");
+                ui.label("Click a track to play its synth. Keys 1–7 select a waveform.");
+                ui.label("Escape closes this help. Outside menus and help, Escape exits the app.");
+                ui.add_space(8.0);
+                if ui.button("Close").clicked() {
+                    ui.close();
+                }
             });
-        });
+            if modal.should_close() {
+                self.show_how_to = false;
+                ctx.memory_mut(|memory| {
+                    if let Some(id) = memory.focused() {
+                        memory.surrender_focus(id);
+                    }
+                });
+            }
+        }
 
-        if edited_synth == self.selected_synth {
+        if edited_synth == self.selected_synth && self.pending_load.is_none() {
             self.set_waveform(selected_waveform);
             self.set_voice_mode(selected_voice_mode);
         }
-        let captured =
-            captured_before || ctx.wants_keyboard_input() || egui::Popup::is_any_open(ctx);
+        let captured = modal_was_open
+            || captured_before
+            || ctx.wants_keyboard_input()
+            || egui::Popup::is_any_open(ctx)
+            || self.pending_load.is_some()
+            || self.pending_save.is_some();
         let previous = self.waveform;
         let held_before = self.keys.held_count();
         let close = self.handle_input(&events, focused, captured);
@@ -677,6 +1032,319 @@ mod tests {
     use std::sync::mpsc;
 
     #[test]
+    fn loading_from_the_modal_updates_tracks_closes_help_and_reports_success() {
+        let path =
+            std::env::temp_dir().join(format!("rustsynth-ui-load-{}.json", std::process::id()));
+        let project = serde_json::json!({
+            "version":2,"sample_rate":48000,"settings":{"bpm":160.0,"beats":16},
+            "click_enabled":false,"selected_synth":7,
+            "synths":[{"id":7,"name":"Loaded bass","settings":{
+                "waveform":"Sine","mode":"Polyphonic","octave_shift":-2,
+                "env":{"attack_sec":0.0,"decay_sec":0.0,"sustain_level":1.0,"release_sec":0.01}
+            }}],
+            "tracks":[{"id":9,"synth_id":7,"muted":false,"volume":1.0,
+                "events":[{"position_beats":0.0,"event":{"On":{"id":60,"pitch":60}}},
+                          {"position_beats":1.0,"event":{"Off":{"id":60}}}]}]
+        });
+        std::fs::write(&path, serde_json::to_vec(&project).unwrap()).unwrap();
+        let (sender, receiver) = mpsc::channel();
+        let monitor = LoopMonitor::default();
+        let mut engine = crate::live_engine::LiveEngine::new(
+            Waveform::Sine,
+            VoiceMode::Polyphonic,
+            48000,
+            monitor.clone(),
+        );
+        let mut app = SynthApp::new(
+            sender,
+            Waveform::Sine,
+            VoiceMode::Polyphonic,
+            Oscilloscope::new(48000),
+            ADSR::default(),
+        );
+        app.loop_monitor = monitor;
+        app.show_project = true;
+        app.project_path = path.to_str().unwrap().into();
+        let ctx = egui::Context::default();
+        draw(&mut app, &ctx, vec![]);
+        let output = draw(&mut app, &ctx, vec![]);
+        click(&mut app, &ctx, text_position(&output, "Load project"));
+        assert!(app.pending_load.is_some());
+        while let Ok(event) = receiver.try_recv() {
+            engine.handle(event);
+        }
+        engine.publish_status();
+        let output = draw(&mut app, &ctx, vec![]);
+        assert!(!app.show_project);
+        assert_eq!(app.selected_synth, 7);
+        assert_eq!(
+            app.loop_settings,
+            LoopSettings {
+                bpm: 160.0,
+                beats: 16
+            }
+        );
+        assert_eq!(app.loop_monitor.read_tracks()[0].id, 9);
+        text_position(
+            &output,
+            "Loaded 1 tracks. Press Play to hear the recording.",
+        );
+        app.play_loop();
+        while let Ok(event) = receiver.try_recv() {
+            engine.handle(event);
+        }
+        assert!((0..100).any(|_| engine.next_sample() != 0.0));
+        app.show_project = true;
+        std::fs::remove_file(&path).unwrap();
+        // A missing file must leave the loaded session intact and show its error.
+        app.loop_status.state = LoopState::Stopped;
+        let output = draw(&mut app, &ctx, vec![]);
+        click(&mut app, &ctx, text_position(&output, "Load project"));
+        assert!(app.show_project);
+        assert!(app.project_message.starts_with("Load failed:"));
+        assert_eq!(app.selected_synth, 7);
+    }
+
+    #[test]
+    fn save_load_menu_opens_project_modal_and_escape_only_closes_it() {
+        let (sender, receiver) = mpsc::channel();
+        let mut app = SynthApp::new(
+            sender,
+            Waveform::Sine,
+            VoiceMode::Polyphonic,
+            Oscilloscope::new(48000),
+            ADSR::default(),
+        );
+        let ctx = egui::Context::default();
+        draw(&mut app, &ctx, vec![]);
+        let output = draw(&mut app, &ctx, vec![]);
+        assert!(
+            !output.shapes.iter().any(
+                |s| matches!(&s.shape,egui::Shape::Text(t) if t.galley.job.text=="Project file")
+            )
+        );
+        click(&mut app, &ctx, text_position(&output, "☰"));
+        let output = draw(&mut app, &ctx, vec![]);
+        click(&mut app, &ctx, text_position(&output, "Save / Load"));
+        assert!(app.show_project);
+        assert!(matches!(receiver.try_recv().unwrap(), SynthEvent::AllOff));
+        let output = draw(&mut app, &ctx, vec![key(Key::A, true)]);
+        text_position(&output, "Save project");
+        text_position(&output, "Load project");
+        assert_eq!(app.project_path, "saved_projects/recording.rustsynth.json");
+        assert!(receiver.try_recv().is_err());
+        draw(&mut app, &ctx, vec![key(Key::Escape, true)]);
+        assert!(!app.show_project);
+        assert!(receiver.try_recv().is_err());
+    }
+
+    #[test]
+    fn collapsed_synths_show_names_and_switch_sound_without_changing_settings() {
+        let (sender, receiver) = mpsc::channel();
+        let mut app = SynthApp::new(
+            sender,
+            Waveform::Sine,
+            VoiceMode::Polyphonic,
+            Oscilloscope::new(48000),
+            ADSR::default(),
+        );
+        app.add_synth();
+        app.set_waveform(Waveform::Triangle);
+        app.synths[1].name = "Triangle sound".into();
+        app.select_synth(1);
+        while receiver.try_recv().is_ok() {}
+        let ctx = egui::Context::default();
+        draw(&mut app, &ctx, vec![]);
+        let output = draw(&mut app, &ctx, vec![]);
+        click(&mut app, &ctx, text_position(&output, "▼ Synths"));
+        assert!(!app.synth_expanded);
+        let output = draw(&mut app, &ctx, vec![]);
+        text_position(&output, "Live output · 25 ms · 4× display gain");
+        text_position(&output, "Stabilize");
+        assert!(!output.shapes.iter().any(|s|matches!(&s.shape,egui::Shape::Text(t) if t.galley.job.text=="Waveform" || t.galley.job.text=="Envelope")));
+        click(&mut app, &ctx, text_position(&output, "Triangle sound"));
+        assert_eq!(app.selected_synth, 2);
+        assert_eq!(app.waveform, Waveform::Triangle);
+        assert!(matches!(
+            receiver.try_recv().unwrap(),
+            SynthEvent::SelectSynth(2)
+        ));
+        assert!(receiver.try_recv().is_err());
+        let output = draw(&mut app, &ctx, vec![]);
+        click(&mut app, &ctx, text_position(&output, "▶ Synths"));
+        assert!(app.synth_expanded);
+        let output = draw(&mut app, &ctx, vec![]);
+        text_position(&output, "Waveform");
+        assert_eq!(app.waveform, Waveform::Triangle);
+    }
+
+    #[test]
+    fn menu_opens_keyboard_help_and_escape_closes_it_without_playing_notes() {
+        let (sender, receiver) = mpsc::channel();
+        let mut app = SynthApp::new(
+            sender,
+            Waveform::Sine,
+            VoiceMode::Polyphonic,
+            Oscilloscope::new(48000),
+            ADSR::default(),
+        );
+        let ctx = egui::Context::default();
+        draw(&mut app, &ctx, vec![]);
+        let output = draw(&mut app, &ctx, vec![]);
+        click(&mut app, &ctx, text_position(&output, "☰"));
+        let output = draw(&mut app, &ctx, vec![]);
+        click(&mut app, &ctx, text_position(&output, "How to"));
+        assert!(app.show_how_to);
+        assert!(matches!(receiver.try_recv().unwrap(), SynthEvent::AllOff));
+        let output = draw(&mut app, &ctx, vec![key(Key::A, true)]);
+        text_position(&output, "Play with your keyboard");
+        assert!(receiver.try_recv().is_err());
+        draw(&mut app, &ctx, vec![key(Key::Escape, true)]);
+        assert!(!app.show_how_to);
+        assert!(receiver.try_recv().is_err());
+    }
+
+    #[test]
+    fn clicking_track_selects_its_sound_and_solo_sends_a_command() {
+        let (sender, receiver) = mpsc::channel();
+        let mut app = SynthApp::new(
+            sender,
+            Waveform::Sine,
+            VoiceMode::Polyphonic,
+            Oscilloscope::new(48000),
+            ADSR::default(),
+        );
+        app.add_synth();
+        app.set_waveform(Waveform::Triangle);
+        app.add_track();
+        app.select_synth(1);
+        while receiver.try_recv().is_ok() {}
+        let ctx = egui::Context::default();
+        draw(&mut app, &ctx, vec![]);
+        let output = draw(&mut app, &ctx, vec![]);
+        click(&mut app, &ctx, text_position(&output, "Track 2"));
+        assert_eq!(app.selected_track, Some(2));
+        assert_eq!(app.waveform, Waveform::Triangle);
+        assert!(matches!(
+            receiver.try_recv().unwrap(),
+            SynthEvent::SelectSynth(2)
+        ));
+        let output = draw(&mut app, &ctx, vec![]);
+        click(
+            &mut app,
+            &ctx,
+            row_text_position(&output, "Track 2", "Solo"),
+        );
+        assert!(matches!(
+            receiver.try_recv().unwrap(),
+            SynthEvent::SoloTrack { id: 2, solo: true }
+        ));
+    }
+
+    #[test]
+    fn kick_preset_can_be_selected_from_the_dropdown() {
+        let (sender, receiver) = mpsc::channel();
+        let mut app = SynthApp::new(
+            sender,
+            Waveform::Sine,
+            VoiceMode::Polyphonic,
+            Oscilloscope::new(48_000),
+            ADSR::default(),
+        );
+        let ctx = egui::Context::default();
+        draw(&mut app, &ctx, vec![]);
+        let output = draw(&mut app, &ctx, vec![]);
+        click(&mut app, &ctx, text_position(&output, "Sine keys"));
+        let output = draw(&mut app, &ctx, vec![]);
+        click(&mut app, &ctx, text_position(&output, "Kick"));
+        assert_eq!(app.waveform, Waveform::Kick);
+        assert_eq!(app.octave_shift, -2);
+        assert_eq!(app.env.sustain_level(), 0.0);
+        assert!(
+            matches!(receiver.try_recv(), Ok(SynthEvent::SetSynthSettings(settings)) if settings.waveform == Waveform::Kick)
+        );
+    }
+
+    #[test]
+    fn octave_shift_is_copied_and_restored_independently_for_each_synth() {
+        let (sender, receiver) = mpsc::channel();
+        let mut app = SynthApp::new(
+            sender,
+            Waveform::Sine,
+            VoiceMode::Polyphonic,
+            Oscilloscope::new(48_000),
+            ADSR::default(),
+        );
+        let bass = synth_presets()
+            .into_iter()
+            .find(|preset| preset.name == "Bass")
+            .unwrap();
+        let default_shift = bass.settings.octave_shift;
+        let custom_shift = if default_shift != -3 { -3 } else { 2 };
+        app.apply_preset(bass);
+        assert_eq!(app.octave_shift, default_shift);
+        assert!(
+            matches!(receiver.try_recv(), Ok(SynthEvent::SetSynthSettings(settings)) if settings.octave_shift == default_shift)
+        );
+        app.add_synth();
+        assert_eq!(app.octave_shift, default_shift);
+        assert!(matches!(receiver.try_recv(), Ok(SynthEvent::AddSynth(_))));
+        assert!(matches!(
+            receiver.try_recv(),
+            Ok(SynthEvent::SelectSynth(2))
+        ));
+        app.set_octave_shift(custom_shift);
+        assert!(matches!(
+            receiver.try_recv(),
+            Ok(SynthEvent::SetOctaveShift(shift)) if shift == custom_shift
+        ));
+        app.select_synth(1);
+        assert_eq!(app.octave_shift, default_shift);
+        app.select_synth(2);
+        assert_eq!(app.octave_shift, custom_shift);
+        let ctx = egui::Context::default();
+        draw(&mut app, &ctx, vec![]);
+        let output = draw(&mut app, &ctx, vec![]);
+        text_position(&output, "Octave shift");
+        text_position(&output, "Custom");
+    }
+
+    #[test]
+    fn preset_dropdown_updates_the_selected_synth_and_manual_edits_show_custom() {
+        let (sender, receiver) = mpsc::channel();
+        let mut app = SynthApp::new(
+            sender,
+            Waveform::Sine,
+            VoiceMode::Polyphonic,
+            Oscilloscope::new(48_000),
+            ADSR::default(),
+        );
+        let ctx = egui::Context::default();
+        draw(&mut app, &ctx, vec![]);
+        let output = draw(&mut app, &ctx, vec![]);
+        click(&mut app, &ctx, text_position(&output, "Sine keys"));
+        let output = draw(&mut app, &ctx, vec![]);
+        click(&mut app, &ctx, text_position(&output, "Snare"));
+        let event = receiver
+            .try_recv()
+            .expect("Preset should send its complete settings");
+        let SynthEvent::SetSynthSettings(settings) = event else {
+            panic!("Expected one atomic settings update");
+        };
+        assert_eq!(settings.waveform, Waveform::WhiteNoise);
+        assert_eq!(settings.env.sustain_level(), 0.0);
+        assert_eq!(app.env, settings.env);
+        assert_eq!(app.synths[0].settings, settings);
+        assert_eq!(app.synths[0].name, "Synth 1");
+        assert!(receiver.try_recv().is_err());
+        let output = draw(&mut app, &ctx, vec![]);
+        text_position(&output, "Snare");
+        app.set_envelope(ADSR::new(0.02, 0.3, 0.4, 0.5));
+        let output = draw(&mut app, &ctx, vec![]);
+        text_position(&output, "Custom");
+    }
+
+    #[test]
     fn synth_bank_add_edit_and_track_assignment_work_through_the_ui() {
         let (sender, receiver) = mpsc::channel();
         let monitor = LoopMonitor::default();
@@ -725,12 +1393,14 @@ mod tests {
             })
             .expect("Routing should offer the new synth");
         click(&mut app, &ctx, choice);
-        let event = receiver.try_recv().unwrap();
-        assert!(matches!(
-            event,
-            SynthEvent::TrackSynth { id: 1, synth_id: 2 }
-        ));
-        engine.handle(event);
+        let mut routed = false;
+        while let Ok(event) = receiver.try_recv() {
+            routed |= matches!(event, SynthEvent::TrackSynth { id: 1, synth_id: 2 });
+            engine.handle(event);
+        }
+        assert!(routed);
+        assert_eq!(app.selected_track, Some(1));
+        assert_eq!(app.selected_synth, 2);
         engine.publish_status();
         assert_eq!(app.loop_monitor.read_tracks()[0].synth_id, 2);
         app.select_synth(1);

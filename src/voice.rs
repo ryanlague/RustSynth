@@ -47,7 +47,7 @@ impl Voice {
             && self.frequency > 0.0
             && !matches!(
                 self.waveform,
-                Waveform::WhiteNoise | Waveform::FilteredNoise
+                Waveform::WhiteNoise | Waveform::FilteredNoise | Waveform::Kick
             )
         {
             Some((self.frequency, self.phase))
@@ -101,7 +101,8 @@ impl Voice {
                 self.waveform
                     .calculate(self.phase, self.amplitude * gain, &mut self.noise);
 
-            let phase_step = std::f64::consts::TAU * self.frequency / sample_rate as f64;
+            let frequency = self.waveform.frequency_at(self.frequency, time);
+            let phase_step = std::f64::consts::TAU * frequency / sample_rate as f64;
             self.phase = (self.phase + phase_step) % std::f64::consts::TAU;
             self.elapsed_samples += 1;
 
@@ -126,6 +127,35 @@ impl Voice {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn kick_retriggers_consistently_and_decays_while_held() {
+        let preset = crate::presets::synth_presets()
+            .into_iter()
+            .find(|preset| preset.name == "Kick")
+            .unwrap();
+        let note = Note {
+            frequency: 65.0,
+            start_sec: 0.0,
+            duration_sec: 0.0,
+            amplitude: 0.5,
+            env: preset.settings.env,
+        };
+        let mut voice = Voice::new(0.0, 0.0, Waveform::Kick);
+        voice.start_held(&note, 0.25);
+        let first: Vec<_> = (0..24_000).map(|_| voice.next_sample(48_000)).collect();
+        assert!(
+            first
+                .iter()
+                .all(|sample| sample.is_finite() && sample.abs() <= 0.125)
+        );
+        assert!(first[..10_000].iter().any(|sample| sample.abs() > 0.05));
+        assert!(first[16_000..].iter().all(|sample| *sample == 0.0));
+        voice.start_held(&note, 0.25);
+        for sample in first.iter().take(2_000) {
+            assert_eq!(voice.next_sample(48_000), *sample);
+        }
+    }
 
     #[test]
     fn noise_percussion_decays_to_silence_while_held_and_releases_normally() {

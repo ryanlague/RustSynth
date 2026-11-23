@@ -1,0 +1,3047 @@
+{
+  "version": 2,
+  "sample_rate": 48000,
+  "settings": {
+    "bpm": 160.0,
+    "beats": 16
+  },
+  "click_enabled": false,
+  "selected_synth": 7,
+  "synths": [
+    {
+      "id": 1,
+      "name": "Kick",
+      "settings": {
+        "waveform": "Kick",
+        "mode": "Polyphonic",
+        "env": {
+          "attack_sec": 0.001,
+          "decay_sec": 0.32,
+          "sustain_level": 0.0,
+          "release_sec": 0.12
+        },
+        "octave_shift": -2
+      }
+    },
+    {
+      "id": 2,
+      "name": "Snare",
+      "settings": {
+        "waveform": "WhiteNoise",
+        "mode": "Polyphonic",
+        "env": {
+          "attack_sec": 0.001,
+          "decay_sec": 0.16,
+          "sustain_level": 0.0,
+          "release_sec": 0.04
+        },
+        "octave_shift": 0
+      }
+    },
+    {
+      "id": 3,
+      "name": "HH",
+      "settings": {
+        "waveform": "WhiteNoise",
+        "mode": "Polyphonic",
+        "env": {
+          "attack_sec": 0.0,
+          "decay_sec": 0.04,
+          "sustain_level": 0.0,
+          "release_sec": 0.01
+        },
+        "octave_shift": 0
+      }
+    },
+    {
+      "id": 4,
+      "name": "Bass",
+      "settings": {
+        "waveform": "Sawtooth",
+        "mode": "Monophonic",
+        "env": {
+          "attack_sec": 0.004,
+          "decay_sec": 0.18,
+          "sustain_level": 0.55,
+          "release_sec": 0.1
+        },
+        "octave_shift": -2
+      }
+    },
+    {
+      "id": 5,
+      "name": "Guitar",
+      "settings": {
+        "waveform": "Triangle",
+        "mode": "Polyphonic",
+        "env": {
+          "attack_sec": 0.001,
+          "decay_sec": 0.22,
+          "sustain_level": 0.0,
+          "release_sec": 0.08
+        },
+        "octave_shift": 0
+      }
+    },
+    {
+      "id": 6,
+      "name": "Lead",
+      "settings": {
+        "waveform": "Square",
+        "mode": "Legato",
+        "env": {
+          "attack_sec": 0.008,
+          "decay_sec": 0.12,
+          "sustain_level": 0.65,
+          "release_sec": 0.16
+        },
+        "octave_shift": 1
+      }
+    },
+    {
+      "id": 7,
+      "name": "Pad",
+      "settings": {
+        "waveform": "Sine",
+        "mode": "Polyphonic",
+        "env": {
+          "attack_sec": 0.45,
+          "decay_sec": 0.5,
+          "sustain_level": 0.75,
+          "release_sec": 1.1
+        },
+        "octave_shift": 0
+      }
+    }
+  ],
+  "tracks": [
+    {
+      "id": 1,
+      "synth_id": 1,
+      "muted": false,
+      "volume": 1.0,
+      "events": [
+        {
+          "position_beats": 0.028444444444444442,
+          "event": {
+            "On": {
+              "id": 60,
+              "pitch": 60
+            }
+          }
+        },
+        {
+          "position_beats": 0.256,
+          "event": {
+            "Off": {
+              "id": 60
+            }
+          }
+        },
+        {
+          "position_beats": 0.512,
+          "event": {
+            "On": {
+              "id": 60,
+              "pitch": 60
+            }
+          }
+        },
+        {
+          "position_beats": 0.768,
+          "event": {
+            "Off": {
+              "id": 60
+            }
+          }
+        },
+        {
+          "position_beats": 2.0195555555555553,
+          "event": {
+            "On": {
+              "id": 60,
+              "pitch": 60
+            }
+          }
+        },
+        {
+          "position_beats": 2.2186666666666666,
+          "event": {
+            "Off": {
+              "id": 60
+            }
+          }
+        },
+        {
+          "position_beats": 2.531555555555556,
+          "event": {
+            "On": {
+              "id": 60,
+              "pitch": 60
+            }
+          }
+        },
+        {
+          "position_beats": 2.8160000000000003,
+          "event": {
+            "Off": {
+              "id": 60
+            }
+          }
+        },
+        {
+          "position_beats": 4.039111111111111,
+          "event": {
+            "On": {
+              "id": 60,
+              "pitch": 60
+            }
+          }
+        },
+        {
+          "position_beats": 4.238222222222222,
+          "event": {
+            "Off": {
+              "id": 60
+            }
+          }
+        },
+        {
+          "position_beats": 4.494222222222222,
+          "event": {
+            "On": {
+              "id": 60,
+              "pitch": 60
+            }
+          }
+        },
+        {
+          "position_beats": 4.778666666666667,
+          "event": {
+            "Off": {
+              "id": 60
+            }
+          }
+        },
+        {
+          "position_beats": 6.001777777777778,
+          "event": {
+            "On": {
+              "id": 60,
+              "pitch": 60
+            }
+          }
+        },
+        {
+          "position_beats": 6.200888888888889,
+          "event": {
+            "Off": {
+              "id": 60
+            }
+          }
+        },
+        {
+          "position_beats": 6.513777777777778,
+          "event": {
+            "On": {
+              "id": 60,
+              "pitch": 60
+            }
+          }
+        },
+        {
+          "position_beats": 6.826666666666667,
+          "event": {
+            "Off": {
+              "id": 60
+            }
+          }
+        },
+        {
+          "position_beats": 7.935999999999999,
+          "event": {
+            "On": {
+              "id": 60,
+              "pitch": 60
+            }
+          }
+        },
+        {
+          "position_beats": 8.192,
+          "event": {
+            "Off": {
+              "id": 60
+            }
+          }
+        },
+        {
+          "position_beats": 8.504888888888889,
+          "event": {
+            "On": {
+              "id": 60,
+              "pitch": 60
+            }
+          }
+        },
+        {
+          "position_beats": 8.817777777777776,
+          "event": {
+            "Off": {
+              "id": 60
+            }
+          }
+        },
+        {
+          "position_beats": 9.984000000000002,
+          "event": {
+            "On": {
+              "id": 60,
+              "pitch": 60
+            }
+          }
+        },
+        {
+          "position_beats": 10.211555555555556,
+          "event": {
+            "Off": {
+              "id": 60
+            }
+          }
+        },
+        {
+          "position_beats": 10.496,
+          "event": {
+            "On": {
+              "id": 60,
+              "pitch": 60
+            }
+          }
+        },
+        {
+          "position_beats": 10.837333333333333,
+          "event": {
+            "Off": {
+              "id": 60
+            }
+          }
+        },
+        {
+          "position_beats": 11.946666666666667,
+          "event": {
+            "On": {
+              "id": 60,
+              "pitch": 60
+            }
+          }
+        },
+        {
+          "position_beats": 12.202666666666666,
+          "event": {
+            "Off": {
+              "id": 60
+            }
+          }
+        },
+        {
+          "position_beats": 12.515555555555556,
+          "event": {
+            "On": {
+              "id": 60,
+              "pitch": 60
+            }
+          }
+        },
+        {
+          "position_beats": 12.856888888888891,
+          "event": {
+            "Off": {
+              "id": 60
+            }
+          }
+        },
+        {
+          "position_beats": 13.994666666666667,
+          "event": {
+            "On": {
+              "id": 60,
+              "pitch": 60
+            }
+          }
+        },
+        {
+          "position_beats": 14.250666666666667,
+          "event": {
+            "Off": {
+              "id": 60
+            }
+          }
+        },
+        {
+          "position_beats": 14.563555555555554,
+          "event": {
+            "On": {
+              "id": 60,
+              "pitch": 60
+            }
+          }
+        },
+        {
+          "position_beats": 14.904888888888888,
+          "event": {
+            "Off": {
+              "id": 60
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "synth_id": 2,
+      "muted": false,
+      "volume": 0.81,
+      "events": [
+        {
+          "position_beats": 1.1093333333333333,
+          "event": {
+            "On": {
+              "id": 60,
+              "pitch": 60
+            }
+          }
+        },
+        {
+          "position_beats": 1.3653333333333333,
+          "event": {
+            "Off": {
+              "id": 60
+            }
+          }
+        },
+        {
+          "position_beats": 3.015111111111111,
+          "event": {
+            "On": {
+              "id": 60,
+              "pitch": 60
+            }
+          }
+        },
+        {
+          "position_beats": 3.271111111111111,
+          "event": {
+            "Off": {
+              "id": 60
+            }
+          }
+        },
+        {
+          "position_beats": 5.063111111111112,
+          "event": {
+            "On": {
+              "id": 60,
+              "pitch": 60
+            }
+          }
+        },
+        {
+          "position_beats": 5.319111111111111,
+          "event": {
+            "Off": {
+              "id": 60
+            }
+          }
+        },
+        {
+          "position_beats": 7.054222222222222,
+          "event": {
+            "On": {
+              "id": 60,
+              "pitch": 60
+            }
+          }
+        },
+        {
+          "position_beats": 7.253333333333334,
+          "event": {
+            "Off": {
+              "id": 60
+            }
+          }
+        },
+        {
+          "position_beats": 9.01688888888889,
+          "event": {
+            "On": {
+              "id": 60,
+              "pitch": 60
+            }
+          }
+        },
+        {
+          "position_beats": 9.244444444444445,
+          "event": {
+            "Off": {
+              "id": 60
+            }
+          }
+        },
+        {
+          "position_beats": 11.008000000000001,
+          "event": {
+            "On": {
+              "id": 60,
+              "pitch": 60
+            }
+          }
+        },
+        {
+          "position_beats": 11.264000000000001,
+          "event": {
+            "Off": {
+              "id": 60
+            }
+          }
+        },
+        {
+          "position_beats": 12.99911111111111,
+          "event": {
+            "On": {
+              "id": 60,
+              "pitch": 60
+            }
+          }
+        },
+        {
+          "position_beats": 13.226666666666667,
+          "event": {
+            "Off": {
+              "id": 60
+            }
+          }
+        },
+        {
+          "position_beats": 15.075555555555555,
+          "event": {
+            "On": {
+              "id": 60,
+              "pitch": 60
+            }
+          }
+        },
+        {
+          "position_beats": 15.303111111111113,
+          "event": {
+            "Off": {
+              "id": 60
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "synth_id": 3,
+      "muted": false,
+      "volume": 0.4,
+      "events": [
+        {
+          "position_beats": 0.08533333333333333,
+          "event": {
+            "On": {
+              "id": 74,
+              "pitch": 86
+            }
+          }
+        },
+        {
+          "position_beats": 0.3413333333333333,
+          "event": {
+            "Off": {
+              "id": 74
+            }
+          }
+        },
+        {
+          "position_beats": 0.5688888888888889,
+          "event": {
+            "On": {
+              "id": 74,
+              "pitch": 86
+            }
+          }
+        },
+        {
+          "position_beats": 0.768,
+          "event": {
+            "Off": {
+              "id": 74
+            }
+          }
+        },
+        {
+          "position_beats": 1.0524444444444445,
+          "event": {
+            "On": {
+              "id": 74,
+              "pitch": 86
+            }
+          }
+        },
+        {
+          "position_beats": 1.3368888888888888,
+          "event": {
+            "Off": {
+              "id": 74
+            }
+          }
+        },
+        {
+          "position_beats": 1.536,
+          "event": {
+            "On": {
+              "id": 74,
+              "pitch": 86
+            }
+          }
+        },
+        {
+          "position_beats": 1.7635555555555555,
+          "event": {
+            "Off": {
+              "id": 74
+            }
+          }
+        },
+        {
+          "position_beats": 2.0764444444444443,
+          "event": {
+            "On": {
+              "id": 74,
+              "pitch": 86
+            }
+          }
+        },
+        {
+          "position_beats": 2.332444444444444,
+          "event": {
+            "Off": {
+              "id": 74
+            }
+          }
+        },
+        {
+          "position_beats": 2.5884444444444443,
+          "event": {
+            "On": {
+              "id": 74,
+              "pitch": 86
+            }
+          }
+        },
+        {
+          "position_beats": 2.8160000000000003,
+          "event": {
+            "Off": {
+              "id": 74
+            }
+          }
+        },
+        {
+          "position_beats": 3.1004444444444443,
+          "event": {
+            "On": {
+              "id": 74,
+              "pitch": 86
+            }
+          }
+        },
+        {
+          "position_beats": 3.4133333333333336,
+          "event": {
+            "Off": {
+              "id": 74
+            }
+          }
+        },
+        {
+          "position_beats": 3.6124444444444443,
+          "event": {
+            "On": {
+              "id": 74,
+              "pitch": 86
+            }
+          }
+        },
+        {
+          "position_beats": 3.8684444444444446,
+          "event": {
+            "Off": {
+              "id": 74
+            }
+          }
+        },
+        {
+          "position_beats": 4.096,
+          "event": {
+            "On": {
+              "id": 74,
+              "pitch": 86
+            }
+          }
+        },
+        {
+          "position_beats": 4.380444444444445,
+          "event": {
+            "Off": {
+              "id": 74
+            }
+          }
+        },
+        {
+          "position_beats": 4.6080000000000005,
+          "event": {
+            "On": {
+              "id": 74,
+              "pitch": 86
+            }
+          }
+        },
+        {
+          "position_beats": 4.807111111111111,
+          "event": {
+            "Off": {
+              "id": 74
+            }
+          }
+        },
+        {
+          "position_beats": 5.091555555555556,
+          "event": {
+            "On": {
+              "id": 74,
+              "pitch": 86
+            }
+          }
+        },
+        {
+          "position_beats": 5.376,
+          "event": {
+            "Off": {
+              "id": 74
+            }
+          }
+        },
+        {
+          "position_beats": 5.603555555555555,
+          "event": {
+            "On": {
+              "id": 74,
+              "pitch": 86
+            }
+          }
+        },
+        {
+          "position_beats": 5.802666666666667,
+          "event": {
+            "Off": {
+              "id": 74
+            }
+          }
+        },
+        {
+          "position_beats": 6.115555555555556,
+          "event": {
+            "On": {
+              "id": 74,
+              "pitch": 86
+            }
+          }
+        },
+        {
+          "position_beats": 6.371555555555556,
+          "event": {
+            "Off": {
+              "id": 74
+            }
+          }
+        },
+        {
+          "position_beats": 6.599111111111112,
+          "event": {
+            "On": {
+              "id": 74,
+              "pitch": 86
+            }
+          }
+        },
+        {
+          "position_beats": 6.826666666666667,
+          "event": {
+            "Off": {
+              "id": 74
+            }
+          }
+        },
+        {
+          "position_beats": 7.111111111111111,
+          "event": {
+            "On": {
+              "id": 74,
+              "pitch": 86
+            }
+          }
+        },
+        {
+          "position_beats": 7.367111111111111,
+          "event": {
+            "Off": {
+              "id": 74
+            }
+          }
+        },
+        {
+          "position_beats": 7.594666666666666,
+          "event": {
+            "On": {
+              "id": 74,
+              "pitch": 86
+            }
+          }
+        },
+        {
+          "position_beats": 7.850666666666666,
+          "event": {
+            "Off": {
+              "id": 74
+            }
+          }
+        },
+        {
+          "position_beats": 8.106666666666666,
+          "event": {
+            "On": {
+              "id": 74,
+              "pitch": 86
+            }
+          }
+        },
+        {
+          "position_beats": 8.362666666666666,
+          "event": {
+            "Off": {
+              "id": 74
+            }
+          }
+        },
+        {
+          "position_beats": 8.618666666666666,
+          "event": {
+            "On": {
+              "id": 74,
+              "pitch": 86
+            }
+          }
+        },
+        {
+          "position_beats": 8.817777777777776,
+          "event": {
+            "Off": {
+              "id": 74
+            }
+          }
+        },
+        {
+          "position_beats": 9.102222222222222,
+          "event": {
+            "On": {
+              "id": 74,
+              "pitch": 86
+            }
+          }
+        },
+        {
+          "position_beats": 9.358222222222222,
+          "event": {
+            "Off": {
+              "id": 74
+            }
+          }
+        },
+        {
+          "position_beats": 9.585777777777777,
+          "event": {
+            "On": {
+              "id": 74,
+              "pitch": 86
+            }
+          }
+        },
+        {
+          "position_beats": 9.813333333333334,
+          "event": {
+            "Off": {
+              "id": 74
+            }
+          }
+        },
+        {
+          "position_beats": 10.069333333333333,
+          "event": {
+            "On": {
+              "id": 74,
+              "pitch": 86
+            }
+          }
+        },
+        {
+          "position_beats": 10.325333333333333,
+          "event": {
+            "Off": {
+              "id": 74
+            }
+          }
+        },
+        {
+          "position_beats": 10.581333333333333,
+          "event": {
+            "On": {
+              "id": 74,
+              "pitch": 86
+            }
+          }
+        },
+        {
+          "position_beats": 10.780444444444443,
+          "event": {
+            "Off": {
+              "id": 74
+            }
+          }
+        },
+        {
+          "position_beats": 11.064888888888891,
+          "event": {
+            "On": {
+              "id": 74,
+              "pitch": 86
+            }
+          }
+        },
+        {
+          "position_beats": 11.32088888888889,
+          "event": {
+            "Off": {
+              "id": 74
+            }
+          }
+        },
+        {
+          "position_beats": 11.548444444444444,
+          "event": {
+            "On": {
+              "id": 74,
+              "pitch": 86
+            }
+          }
+        },
+        {
+          "position_beats": 11.776000000000002,
+          "event": {
+            "Off": {
+              "id": 74
+            }
+          }
+        },
+        {
+          "position_beats": 12.060444444444444,
+          "event": {
+            "On": {
+              "id": 74,
+              "pitch": 86
+            }
+          }
+        },
+        {
+          "position_beats": 12.316444444444445,
+          "event": {
+            "Off": {
+              "id": 74
+            }
+          }
+        },
+        {
+          "position_beats": 12.572444444444445,
+          "event": {
+            "On": {
+              "id": 74,
+              "pitch": 86
+            }
+          }
+        },
+        {
+          "position_beats": 12.771555555555555,
+          "event": {
+            "Off": {
+              "id": 74
+            }
+          }
+        },
+        {
+          "position_beats": 13.056000000000001,
+          "event": {
+            "On": {
+              "id": 74,
+              "pitch": 86
+            }
+          }
+        },
+        {
+          "position_beats": 13.283555555555555,
+          "event": {
+            "Off": {
+              "id": 74
+            }
+          }
+        },
+        {
+          "position_beats": 13.568000000000001,
+          "event": {
+            "On": {
+              "id": 74,
+              "pitch": 86
+            }
+          }
+        },
+        {
+          "position_beats": 13.738666666666667,
+          "event": {
+            "Off": {
+              "id": 74
+            }
+          }
+        },
+        {
+          "position_beats": 14.051555555555554,
+          "event": {
+            "On": {
+              "id": 74,
+              "pitch": 86
+            }
+          }
+        },
+        {
+          "position_beats": 14.250666666666667,
+          "event": {
+            "Off": {
+              "id": 74
+            }
+          }
+        },
+        {
+          "position_beats": 14.563555555555554,
+          "event": {
+            "On": {
+              "id": 74,
+              "pitch": 86
+            }
+          }
+        },
+        {
+          "position_beats": 14.705777777777778,
+          "event": {
+            "Off": {
+              "id": 74
+            }
+          }
+        },
+        {
+          "position_beats": 15.047111111111112,
+          "event": {
+            "On": {
+              "id": 74,
+              "pitch": 86
+            }
+          }
+        },
+        {
+          "position_beats": 15.274666666666667,
+          "event": {
+            "Off": {
+              "id": 74
+            }
+          }
+        },
+        {
+          "position_beats": 15.587555555555555,
+          "event": {
+            "On": {
+              "id": 74,
+              "pitch": 86
+            }
+          }
+        },
+        {
+          "position_beats": 15.843555555555556,
+          "event": {
+            "Off": {
+              "id": 74
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "synth_id": 4,
+      "muted": false,
+      "volume": 0.8,
+      "events": [
+        {
+          "position_beats": 0.128,
+          "event": {
+            "On": {
+              "id": 72,
+              "pitch": 60
+            }
+          }
+        },
+        {
+          "position_beats": 0.3271111111111111,
+          "event": {
+            "Off": {
+              "id": 72
+            }
+          }
+        },
+        {
+          "position_beats": 0.6115555555555556,
+          "event": {
+            "On": {
+              "id": 72,
+              "pitch": 60
+            }
+          }
+        },
+        {
+          "position_beats": 0.7822222222222223,
+          "event": {
+            "Off": {
+              "id": 72
+            }
+          }
+        },
+        {
+          "position_beats": 1.0666666666666667,
+          "event": {
+            "On": {
+              "id": 72,
+              "pitch": 60
+            }
+          }
+        },
+        {
+          "position_beats": 1.265777777777778,
+          "event": {
+            "Off": {
+              "id": 72
+            }
+          }
+        },
+        {
+          "position_beats": 1.5502222222222222,
+          "event": {
+            "On": {
+              "id": 72,
+              "pitch": 60
+            }
+          }
+        },
+        {
+          "position_beats": 1.7777777777777777,
+          "event": {
+            "Off": {
+              "id": 72
+            }
+          }
+        },
+        {
+          "position_beats": 2.062222222222222,
+          "event": {
+            "On": {
+              "id": 72,
+              "pitch": 60
+            }
+          }
+        },
+        {
+          "position_beats": 2.2897777777777777,
+          "event": {
+            "Off": {
+              "id": 72
+            }
+          }
+        },
+        {
+          "position_beats": 2.545777777777778,
+          "event": {
+            "On": {
+              "id": 72,
+              "pitch": 60
+            }
+          }
+        },
+        {
+          "position_beats": 2.7733333333333334,
+          "event": {
+            "Off": {
+              "id": 72
+            }
+          }
+        },
+        {
+          "position_beats": 3.057777777777778,
+          "event": {
+            "On": {
+              "id": 72,
+              "pitch": 60
+            }
+          }
+        },
+        {
+          "position_beats": 3.256888888888889,
+          "event": {
+            "Off": {
+              "id": 72
+            }
+          }
+        },
+        {
+          "position_beats": 3.5413333333333337,
+          "event": {
+            "On": {
+              "id": 72,
+              "pitch": 60
+            }
+          }
+        },
+        {
+          "position_beats": 3.7404444444444445,
+          "event": {
+            "Off": {
+              "id": 72
+            }
+          }
+        },
+        {
+          "position_beats": 4.081777777777778,
+          "event": {
+            "On": {
+              "id": 67,
+              "pitch": 55
+            }
+          }
+        },
+        {
+          "position_beats": 4.309333333333333,
+          "event": {
+            "Off": {
+              "id": 67
+            }
+          }
+        },
+        {
+          "position_beats": 4.5937777777777775,
+          "event": {
+            "On": {
+              "id": 67,
+              "pitch": 55
+            }
+          }
+        },
+        {
+          "position_beats": 4.736000000000001,
+          "event": {
+            "Off": {
+              "id": 67
+            }
+          }
+        },
+        {
+          "position_beats": 5.077333333333333,
+          "event": {
+            "On": {
+              "id": 67,
+              "pitch": 55
+            }
+          }
+        },
+        {
+          "position_beats": 5.2764444444444445,
+          "event": {
+            "Off": {
+              "id": 67
+            }
+          }
+        },
+        {
+          "position_beats": 5.560888888888888,
+          "event": {
+            "On": {
+              "id": 67,
+              "pitch": 55
+            }
+          }
+        },
+        {
+          "position_beats": 5.760000000000001,
+          "event": {
+            "Off": {
+              "id": 67
+            }
+          }
+        },
+        {
+          "position_beats": 6.101333333333333,
+          "event": {
+            "On": {
+              "id": 67,
+              "pitch": 55
+            }
+          }
+        },
+        {
+          "position_beats": 6.328888888888889,
+          "event": {
+            "Off": {
+              "id": 67
+            }
+          }
+        },
+        {
+          "position_beats": 6.584888888888888,
+          "event": {
+            "On": {
+              "id": 67,
+              "pitch": 55
+            }
+          }
+        },
+        {
+          "position_beats": 6.784000000000001,
+          "event": {
+            "Off": {
+              "id": 67
+            }
+          }
+        },
+        {
+          "position_beats": 7.096888888888889,
+          "event": {
+            "On": {
+              "id": 67,
+              "pitch": 55
+            }
+          }
+        },
+        {
+          "position_beats": 7.296000000000001,
+          "event": {
+            "Off": {
+              "id": 67
+            }
+          }
+        },
+        {
+          "position_beats": 7.5520000000000005,
+          "event": {
+            "On": {
+              "id": 67,
+              "pitch": 55
+            }
+          }
+        },
+        {
+          "position_beats": 7.779555555555556,
+          "event": {
+            "Off": {
+              "id": 67
+            }
+          }
+        },
+        {
+          "position_beats": 8.064,
+          "event": {
+            "On": {
+              "id": 69,
+              "pitch": 57
+            }
+          }
+        },
+        {
+          "position_beats": 8.291555555555556,
+          "event": {
+            "Off": {
+              "id": 69
+            }
+          }
+        },
+        {
+          "position_beats": 8.547555555555556,
+          "event": {
+            "On": {
+              "id": 69,
+              "pitch": 57
+            }
+          }
+        },
+        {
+          "position_beats": 8.746666666666666,
+          "event": {
+            "Off": {
+              "id": 69
+            }
+          }
+        },
+        {
+          "position_beats": 9.03111111111111,
+          "event": {
+            "On": {
+              "id": 69,
+              "pitch": 57
+            }
+          }
+        },
+        {
+          "position_beats": 9.23022222222222,
+          "event": {
+            "Off": {
+              "id": 69
+            }
+          }
+        },
+        {
+          "position_beats": 9.48622222222222,
+          "event": {
+            "On": {
+              "id": 69,
+              "pitch": 57
+            }
+          }
+        },
+        {
+          "position_beats": 9.713777777777777,
+          "event": {
+            "Off": {
+              "id": 69
+            }
+          }
+        },
+        {
+          "position_beats": 9.998222222222221,
+          "event": {
+            "On": {
+              "id": 69,
+              "pitch": 57
+            }
+          }
+        },
+        {
+          "position_beats": 10.197333333333331,
+          "event": {
+            "Off": {
+              "id": 69
+            }
+          }
+        },
+        {
+          "position_beats": 10.453333333333335,
+          "event": {
+            "On": {
+              "id": 69,
+              "pitch": 57
+            }
+          }
+        },
+        {
+          "position_beats": 10.652444444444445,
+          "event": {
+            "Off": {
+              "id": 69
+            }
+          }
+        },
+        {
+          "position_beats": 10.965333333333335,
+          "event": {
+            "On": {
+              "id": 69,
+              "pitch": 57
+            }
+          }
+        },
+        {
+          "position_beats": 11.164444444444445,
+          "event": {
+            "Off": {
+              "id": 69
+            }
+          }
+        },
+        {
+          "position_beats": 11.505777777777778,
+          "event": {
+            "On": {
+              "id": 69,
+              "pitch": 57
+            }
+          }
+        },
+        {
+          "position_beats": 11.676444444444446,
+          "event": {
+            "Off": {
+              "id": 69
+            }
+          }
+        },
+        {
+          "position_beats": 12.103111111111112,
+          "event": {
+            "On": {
+              "id": 65,
+              "pitch": 53
+            }
+          }
+        },
+        {
+          "position_beats": 12.273777777777779,
+          "event": {
+            "Off": {
+              "id": 65
+            }
+          }
+        },
+        {
+          "position_beats": 12.558222222222222,
+          "event": {
+            "On": {
+              "id": 65,
+              "pitch": 53
+            }
+          }
+        },
+        {
+          "position_beats": 12.700444444444447,
+          "event": {
+            "Off": {
+              "id": 65
+            }
+          }
+        },
+        {
+          "position_beats": 13.041777777777778,
+          "event": {
+            "On": {
+              "id": 65,
+              "pitch": 53
+            }
+          }
+        },
+        {
+          "position_beats": 13.212444444444445,
+          "event": {
+            "Off": {
+              "id": 65
+            }
+          }
+        },
+        {
+          "position_beats": 13.553777777777778,
+          "event": {
+            "On": {
+              "id": 65,
+              "pitch": 53
+            }
+          }
+        },
+        {
+          "position_beats": 13.724444444444446,
+          "event": {
+            "Off": {
+              "id": 65
+            }
+          }
+        },
+        {
+          "position_beats": 14.037333333333333,
+          "event": {
+            "On": {
+              "id": 65,
+              "pitch": 53
+            }
+          }
+        },
+        {
+          "position_beats": 14.236444444444446,
+          "event": {
+            "Off": {
+              "id": 65
+            }
+          }
+        },
+        {
+          "position_beats": 14.492444444444443,
+          "event": {
+            "On": {
+              "id": 65,
+              "pitch": 53
+            }
+          }
+        },
+        {
+          "position_beats": 14.691555555555556,
+          "event": {
+            "Off": {
+              "id": 65
+            }
+          }
+        },
+        {
+          "position_beats": 14.975999999999999,
+          "event": {
+            "On": {
+              "id": 65,
+              "pitch": 53
+            }
+          }
+        },
+        {
+          "position_beats": 15.146666666666667,
+          "event": {
+            "Off": {
+              "id": 65
+            }
+          }
+        },
+        {
+          "position_beats": 15.488,
+          "event": {
+            "On": {
+              "id": 65,
+              "pitch": 53
+            }
+          }
+        },
+        {
+          "position_beats": 15.80088888888889,
+          "event": {
+            "Off": {
+              "id": 65
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "synth_id": 5,
+      "muted": false,
+      "volume": 0.77,
+      "events": [
+        {
+          "position_beats": 0.1848888888888889,
+          "event": {
+            "On": {
+              "id": 67,
+              "pitch": 67
+            }
+          }
+        },
+        {
+          "position_beats": 0.1848888888888889,
+          "event": {
+            "On": {
+              "id": 72,
+              "pitch": 72
+            }
+          }
+        },
+        {
+          "position_beats": 0.64,
+          "event": {
+            "Off": {
+              "id": 72
+            }
+          }
+        },
+        {
+          "position_beats": 0.7253333333333334,
+          "event": {
+            "Off": {
+              "id": 67
+            }
+          }
+        },
+        {
+          "position_beats": 1.1520000000000001,
+          "event": {
+            "On": {
+              "id": 67,
+              "pitch": 67
+            }
+          }
+        },
+        {
+          "position_beats": 1.1804444444444444,
+          "event": {
+            "On": {
+              "id": 72,
+              "pitch": 72
+            }
+          }
+        },
+        {
+          "position_beats": 1.5786666666666667,
+          "event": {
+            "Off": {
+              "id": 67
+            }
+          }
+        },
+        {
+          "position_beats": 1.6071111111111114,
+          "event": {
+            "Off": {
+              "id": 72
+            }
+          }
+        },
+        {
+          "position_beats": 2.119111111111111,
+          "event": {
+            "On": {
+              "id": 67,
+              "pitch": 67
+            }
+          }
+        },
+        {
+          "position_beats": 2.1475555555555554,
+          "event": {
+            "On": {
+              "id": 72,
+              "pitch": 72
+            }
+          }
+        },
+        {
+          "position_beats": 2.5742222222222226,
+          "event": {
+            "Off": {
+              "id": 67
+            }
+          }
+        },
+        {
+          "position_beats": 2.631111111111111,
+          "event": {
+            "Off": {
+              "id": 72
+            }
+          }
+        },
+        {
+          "position_beats": 3.057777777777778,
+          "event": {
+            "On": {
+              "id": 72,
+              "pitch": 72
+            }
+          }
+        },
+        {
+          "position_beats": 3.0862222222222226,
+          "event": {
+            "On": {
+              "id": 67,
+              "pitch": 67
+            }
+          }
+        },
+        {
+          "position_beats": 3.5413333333333337,
+          "event": {
+            "Off": {
+              "id": 72
+            }
+          }
+        },
+        {
+          "position_beats": 3.569777777777778,
+          "event": {
+            "Off": {
+              "id": 67
+            }
+          }
+        },
+        {
+          "position_beats": 4.053333333333333,
+          "event": {
+            "On": {
+              "id": 67,
+              "pitch": 67
+            }
+          }
+        },
+        {
+          "position_beats": 4.110222222222222,
+          "event": {
+            "On": {
+              "id": 62,
+              "pitch": 62
+            }
+          }
+        },
+        {
+          "position_beats": 4.53688888888889,
+          "event": {
+            "Off": {
+              "id": 67
+            }
+          }
+        },
+        {
+          "position_beats": 4.622222222222223,
+          "event": {
+            "Off": {
+              "id": 62
+            }
+          }
+        },
+        {
+          "position_beats": 5.1626666666666665,
+          "event": {
+            "On": {
+              "id": 67,
+              "pitch": 67
+            }
+          }
+        },
+        {
+          "position_beats": 5.1626666666666665,
+          "event": {
+            "On": {
+              "id": 62,
+              "pitch": 62
+            }
+          }
+        },
+        {
+          "position_beats": 5.560888888888888,
+          "event": {
+            "Off": {
+              "id": 67
+            }
+          }
+        },
+        {
+          "position_beats": 5.617777777777777,
+          "event": {
+            "Off": {
+              "id": 62
+            }
+          }
+        },
+        {
+          "position_beats": 6.158222222222222,
+          "event": {
+            "On": {
+              "id": 67,
+              "pitch": 67
+            }
+          }
+        },
+        {
+          "position_beats": 6.1866666666666665,
+          "event": {
+            "On": {
+              "id": 62,
+              "pitch": 62
+            }
+          }
+        },
+        {
+          "position_beats": 6.584888888888888,
+          "event": {
+            "Off": {
+              "id": 67
+            }
+          }
+        },
+        {
+          "position_beats": 6.641777777777778,
+          "event": {
+            "Off": {
+              "id": 62
+            }
+          }
+        },
+        {
+          "position_beats": 7.153777777777777,
+          "event": {
+            "On": {
+              "id": 67,
+              "pitch": 67
+            }
+          }
+        },
+        {
+          "position_beats": 7.2106666666666674,
+          "event": {
+            "On": {
+              "id": 62,
+              "pitch": 62
+            }
+          }
+        },
+        {
+          "position_beats": 7.5520000000000005,
+          "event": {
+            "Off": {
+              "id": 67
+            }
+          }
+        },
+        {
+          "position_beats": 7.665777777777778,
+          "event": {
+            "Off": {
+              "id": 62
+            }
+          }
+        },
+        {
+          "position_beats": 8.149333333333335,
+          "event": {
+            "On": {
+              "id": 69,
+              "pitch": 69
+            }
+          }
+        },
+        {
+          "position_beats": 8.206222222222221,
+          "event": {
+            "On": {
+              "id": 64,
+              "pitch": 64
+            }
+          }
+        },
+        {
+          "position_beats": 8.547555555555556,
+          "event": {
+            "Off": {
+              "id": 69
+            }
+          }
+        },
+        {
+          "position_beats": 8.604444444444445,
+          "event": {
+            "Off": {
+              "id": 64
+            }
+          }
+        },
+        {
+          "position_beats": 9.144888888888888,
+          "event": {
+            "On": {
+              "id": 69,
+              "pitch": 69
+            }
+          }
+        },
+        {
+          "position_beats": 9.173333333333334,
+          "event": {
+            "On": {
+              "id": 64,
+              "pitch": 64
+            }
+          }
+        },
+        {
+          "position_beats": 9.6,
+          "event": {
+            "Off": {
+              "id": 69
+            }
+          }
+        },
+        {
+          "position_beats": 9.628444444444444,
+          "event": {
+            "Off": {
+              "id": 64
+            }
+          }
+        },
+        {
+          "position_beats": 10.140444444444444,
+          "event": {
+            "On": {
+              "id": 69,
+              "pitch": 69
+            }
+          }
+        },
+        {
+          "position_beats": 10.197333333333331,
+          "event": {
+            "On": {
+              "id": 64,
+              "pitch": 64
+            }
+          }
+        },
+        {
+          "position_beats": 10.56711111111111,
+          "event": {
+            "Off": {
+              "id": 69
+            }
+          }
+        },
+        {
+          "position_beats": 10.595555555555556,
+          "event": {
+            "Off": {
+              "id": 64
+            }
+          }
+        },
+        {
+          "position_beats": 11.107555555555557,
+          "event": {
+            "On": {
+              "id": 69,
+              "pitch": 69
+            }
+          }
+        },
+        {
+          "position_beats": 11.136000000000001,
+          "event": {
+            "On": {
+              "id": 64,
+              "pitch": 64
+            }
+          }
+        },
+        {
+          "position_beats": 11.420444444444446,
+          "event": {
+            "Off": {
+              "id": 69
+            }
+          }
+        },
+        {
+          "position_beats": 11.477333333333336,
+          "event": {
+            "Off": {
+              "id": 64
+            }
+          }
+        },
+        {
+          "position_beats": 12.074666666666666,
+          "event": {
+            "On": {
+              "id": 65,
+              "pitch": 65
+            }
+          }
+        },
+        {
+          "position_beats": 12.131555555555556,
+          "event": {
+            "On": {
+              "id": 60,
+              "pitch": 60
+            }
+          }
+        },
+        {
+          "position_beats": 12.444444444444446,
+          "event": {
+            "Off": {
+              "id": 65
+            }
+          }
+        },
+        {
+          "position_beats": 12.501333333333331,
+          "event": {
+            "Off": {
+              "id": 60
+            }
+          }
+        },
+        {
+          "position_beats": 13.070222222222222,
+          "event": {
+            "On": {
+              "id": 60,
+              "pitch": 60
+            }
+          }
+        },
+        {
+          "position_beats": 13.127111111111109,
+          "event": {
+            "On": {
+              "id": 65,
+              "pitch": 65
+            }
+          }
+        },
+        {
+          "position_beats": 13.44,
+          "event": {
+            "Off": {
+              "id": 65
+            }
+          }
+        },
+        {
+          "position_beats": 13.49688888888889,
+          "event": {
+            "Off": {
+              "id": 60
+            }
+          }
+        },
+        {
+          "position_beats": 14.065777777777779,
+          "event": {
+            "On": {
+              "id": 60,
+              "pitch": 60
+            }
+          }
+        },
+        {
+          "position_beats": 14.065777777777779,
+          "event": {
+            "On": {
+              "id": 65,
+              "pitch": 65
+            }
+          }
+        },
+        {
+          "position_beats": 14.464,
+          "event": {
+            "Off": {
+              "id": 65
+            }
+          }
+        },
+        {
+          "position_beats": 14.520888888888889,
+          "event": {
+            "Off": {
+              "id": 60
+            }
+          }
+        },
+        {
+          "position_beats": 15.061333333333332,
+          "event": {
+            "On": {
+              "id": 65,
+              "pitch": 65
+            }
+          }
+        },
+        {
+          "position_beats": 15.08977777777778,
+          "event": {
+            "On": {
+              "id": 60,
+              "pitch": 60
+            }
+          }
+        },
+        {
+          "position_beats": 15.431111111111113,
+          "event": {
+            "Off": {
+              "id": 65
+            }
+          }
+        },
+        {
+          "position_beats": 15.488,
+          "event": {
+            "Off": {
+              "id": 60
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "synth_id": 6,
+      "muted": false,
+      "volume": 0.3,
+      "events": [
+        {
+          "position_beats": 0.14222222222222222,
+          "event": {
+            "On": {
+              "id": 72,
+              "pitch": 72
+            }
+          }
+        },
+        {
+          "position_beats": 0.711111111111111,
+          "event": {
+            "Off": {
+              "id": 72
+            }
+          }
+        },
+        {
+          "position_beats": 1.1377777777777778,
+          "event": {
+            "On": {
+              "id": 72,
+              "pitch": 72
+            }
+          }
+        },
+        {
+          "position_beats": 1.5644444444444445,
+          "event": {
+            "Off": {
+              "id": 72
+            }
+          }
+        },
+        {
+          "position_beats": 1.649777777777778,
+          "event": {
+            "On": {
+              "id": 74,
+              "pitch": 74
+            }
+          }
+        },
+        {
+          "position_beats": 2.104888888888889,
+          "event": {
+            "Off": {
+              "id": 74
+            }
+          }
+        },
+        {
+          "position_beats": 2.5884444444444443,
+          "event": {
+            "On": {
+              "id": 74,
+              "pitch": 74
+            }
+          }
+        },
+        {
+          "position_beats": 3.128888888888889,
+          "event": {
+            "On": {
+              "id": 76,
+              "pitch": 76
+            }
+          }
+        },
+        {
+          "position_beats": 3.185777777777778,
+          "event": {
+            "Off": {
+              "id": 74
+            }
+          }
+        },
+        {
+          "position_beats": 3.953777777777778,
+          "event": {
+            "Off": {
+              "id": 76
+            }
+          }
+        },
+        {
+          "position_beats": 4.096,
+          "event": {
+            "On": {
+              "id": 67,
+              "pitch": 67
+            }
+          }
+        },
+        {
+          "position_beats": 4.6080000000000005,
+          "event": {
+            "Off": {
+              "id": 67
+            }
+          }
+        },
+        {
+          "position_beats": 5.148444444444445,
+          "event": {
+            "On": {
+              "id": 67,
+              "pitch": 67
+            }
+          }
+        },
+        {
+          "position_beats": 5.632000000000001,
+          "event": {
+            "Off": {
+              "id": 67
+            }
+          }
+        },
+        {
+          "position_beats": 5.717333333333333,
+          "event": {
+            "On": {
+              "id": 74,
+              "pitch": 74
+            }
+          }
+        },
+        {
+          "position_beats": 6.229333333333333,
+          "event": {
+            "Off": {
+              "id": 74
+            }
+          }
+        },
+        {
+          "position_beats": 6.627555555555555,
+          "event": {
+            "On": {
+              "id": 74,
+              "pitch": 74
+            }
+          }
+        },
+        {
+          "position_beats": 7.1964444444444435,
+          "event": {
+            "On": {
+              "id": 76,
+              "pitch": 76
+            }
+          }
+        },
+        {
+          "position_beats": 7.253333333333334,
+          "event": {
+            "Off": {
+              "id": 74
+            }
+          }
+        },
+        {
+          "position_beats": 8.163555555555556,
+          "event": {
+            "Off": {
+              "id": 76
+            }
+          }
+        },
+        {
+          "position_beats": 8.220444444444444,
+          "event": {
+            "On": {
+              "id": 69,
+              "pitch": 69
+            }
+          }
+        },
+        {
+          "position_beats": 8.732444444444445,
+          "event": {
+            "Off": {
+              "id": 69
+            }
+          }
+        },
+        {
+          "position_beats": 9.187555555555555,
+          "event": {
+            "On": {
+              "id": 69,
+              "pitch": 69
+            }
+          }
+        },
+        {
+          "position_beats": 9.614222222222223,
+          "event": {
+            "Off": {
+              "id": 69
+            }
+          }
+        },
+        {
+          "position_beats": 9.699555555555555,
+          "event": {
+            "On": {
+              "id": 74,
+              "pitch": 74
+            }
+          }
+        },
+        {
+          "position_beats": 10.268444444444444,
+          "event": {
+            "Off": {
+              "id": 74
+            }
+          }
+        },
+        {
+          "position_beats": 10.638222222222222,
+          "event": {
+            "On": {
+              "id": 74,
+              "pitch": 74
+            }
+          }
+        },
+        {
+          "position_beats": 11.178666666666667,
+          "event": {
+            "On": {
+              "id": 76,
+              "pitch": 76
+            }
+          }
+        },
+        {
+          "position_beats": 11.20711111111111,
+          "event": {
+            "Off": {
+              "id": 74
+            }
+          }
+        },
+        {
+          "position_beats": 12.032,
+          "event": {
+            "Off": {
+              "id": 76
+            }
+          }
+        },
+        {
+          "position_beats": 12.145777777777777,
+          "event": {
+            "On": {
+              "id": 65,
+              "pitch": 65
+            }
+          }
+        },
+        {
+          "position_beats": 12.657777777777778,
+          "event": {
+            "Off": {
+              "id": 65
+            }
+          }
+        },
+        {
+          "position_beats": 13.084444444444443,
+          "event": {
+            "On": {
+              "id": 65,
+              "pitch": 65
+            }
+          }
+        },
+        {
+          "position_beats": 13.596444444444444,
+          "event": {
+            "Off": {
+              "id": 65
+            }
+          }
+        },
+        {
+          "position_beats": 13.653333333333334,
+          "event": {
+            "On": {
+              "id": 76,
+              "pitch": 76
+            }
+          }
+        },
+        {
+          "position_beats": 14.023111111111112,
+          "event": {
+            "Off": {
+              "id": 76
+            }
+          }
+        },
+        {
+          "position_beats": 14.563555555555554,
+          "event": {
+            "On": {
+              "id": 76,
+              "pitch": 76
+            }
+          }
+        },
+        {
+          "position_beats": 15.104000000000001,
+          "event": {
+            "On": {
+              "id": 74,
+              "pitch": 74
+            }
+          }
+        },
+        {
+          "position_beats": 15.160888888888888,
+          "event": {
+            "Off": {
+              "id": 76
+            }
+          }
+        },
+        {
+          "position_beats": 15.999944444444445,
+          "event": {
+            "Off": {
+              "id": 74
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "synth_id": 5,
+      "muted": false,
+      "volume": 0.6,
+      "events": [
+        {
+          "position_beats": 0.08533333333333333,
+          "event": {
+            "On": {
+              "id": 72,
+              "pitch": 72
+            }
+          }
+        },
+        {
+          "position_beats": 0.5688888888888889,
+          "event": {
+            "Off": {
+              "id": 72
+            }
+          }
+        },
+        {
+          "position_beats": 1.0808888888888888,
+          "event": {
+            "On": {
+              "id": 72,
+              "pitch": 72
+            }
+          }
+        },
+        {
+          "position_beats": 1.422222222222222,
+          "event": {
+            "Off": {
+              "id": 72
+            }
+          }
+        },
+        {
+          "position_beats": 1.678222222222222,
+          "event": {
+            "On": {
+              "id": 74,
+              "pitch": 74
+            }
+          }
+        },
+        {
+          "position_beats": 2.048,
+          "event": {
+            "Off": {
+              "id": 74
+            }
+          }
+        },
+        {
+          "position_beats": 2.531555555555556,
+          "event": {
+            "On": {
+              "id": 74,
+              "pitch": 74
+            }
+          }
+        },
+        {
+          "position_beats": 2.872888888888889,
+          "event": {
+            "Off": {
+              "id": 74
+            }
+          }
+        },
+        {
+          "position_beats": 3.128888888888889,
+          "event": {
+            "On": {
+              "id": 76,
+              "pitch": 76
+            }
+          }
+        },
+        {
+          "position_beats": 3.669333333333333,
+          "event": {
+            "Off": {
+              "id": 76
+            }
+          }
+        },
+        {
+          "position_beats": 4.096,
+          "event": {
+            "On": {
+              "id": 67,
+              "pitch": 67
+            }
+          }
+        },
+        {
+          "position_beats": 4.522666666666667,
+          "event": {
+            "Off": {
+              "id": 67
+            }
+          }
+        },
+        {
+          "position_beats": 5.034666666666666,
+          "event": {
+            "On": {
+              "id": 67,
+              "pitch": 67
+            }
+          }
+        },
+        {
+          "position_beats": 5.290666666666667,
+          "event": {
+            "Off": {
+              "id": 67
+            }
+          }
+        },
+        {
+          "position_beats": 5.660444444444445,
+          "event": {
+            "On": {
+              "id": 74,
+              "pitch": 74
+            }
+          }
+        },
+        {
+          "position_beats": 6.001777777777778,
+          "event": {
+            "Off": {
+              "id": 74
+            }
+          }
+        },
+        {
+          "position_beats": 6.513777777777778,
+          "event": {
+            "On": {
+              "id": 74,
+              "pitch": 74
+            }
+          }
+        },
+        {
+          "position_beats": 6.798222222222222,
+          "event": {
+            "Off": {
+              "id": 74
+            }
+          }
+        },
+        {
+          "position_beats": 7.168000000000001,
+          "event": {
+            "On": {
+              "id": 76,
+              "pitch": 76
+            }
+          }
+        },
+        {
+          "position_beats": 7.7653333333333325,
+          "event": {
+            "Off": {
+              "id": 76
+            }
+          }
+        },
+        {
+          "position_beats": 8.135111111111112,
+          "event": {
+            "On": {
+              "id": 69,
+              "pitch": 69
+            }
+          }
+        },
+        {
+          "position_beats": 8.56177777777778,
+          "event": {
+            "Off": {
+              "id": 69
+            }
+          }
+        },
+        {
+          "position_beats": 9.130666666666666,
+          "event": {
+            "On": {
+              "id": 69,
+              "pitch": 69
+            }
+          }
+        },
+        {
+          "position_beats": 9.472000000000001,
+          "event": {
+            "Off": {
+              "id": 69
+            }
+          }
+        },
+        {
+          "position_beats": 9.699555555555555,
+          "event": {
+            "On": {
+              "id": 74,
+              "pitch": 74
+            }
+          }
+        },
+        {
+          "position_beats": 10.069333333333333,
+          "event": {
+            "Off": {
+              "id": 74
+            }
+          }
+        },
+        {
+          "position_beats": 10.581333333333333,
+          "event": {
+            "On": {
+              "id": 74,
+              "pitch": 74
+            }
+          }
+        },
+        {
+          "position_beats": 10.894222222222224,
+          "event": {
+            "Off": {
+              "id": 74
+            }
+          }
+        },
+        {
+          "position_beats": 11.20711111111111,
+          "event": {
+            "On": {
+              "id": 76,
+              "pitch": 76
+            }
+          }
+        },
+        {
+          "position_beats": 11.690666666666667,
+          "event": {
+            "Off": {
+              "id": 76
+            }
+          }
+        },
+        {
+          "position_beats": 12.202666666666666,
+          "event": {
+            "On": {
+              "id": 65,
+              "pitch": 65
+            }
+          }
+        },
+        {
+          "position_beats": 12.544,
+          "event": {
+            "Off": {
+              "id": 65
+            }
+          }
+        },
+        {
+          "position_beats": 13.141333333333334,
+          "event": {
+            "On": {
+              "id": 65,
+              "pitch": 65
+            }
+          }
+        },
+        {
+          "position_beats": 13.511111111111111,
+          "event": {
+            "Off": {
+              "id": 65
+            }
+          }
+        },
+        {
+          "position_beats": 13.653333333333334,
+          "event": {
+            "On": {
+              "id": 76,
+              "pitch": 76
+            }
+          }
+        },
+        {
+          "position_beats": 14.080000000000002,
+          "event": {
+            "Off": {
+              "id": 76
+            }
+          }
+        },
+        {
+          "position_beats": 14.535111111111112,
+          "event": {
+            "On": {
+              "id": 76,
+              "pitch": 76
+            }
+          }
+        },
+        {
+          "position_beats": 14.961777777777778,
+          "event": {
+            "Off": {
+              "id": 76
+            }
+          }
+        },
+        {
+          "position_beats": 15.132444444444445,
+          "event": {
+            "On": {
+              "id": 74,
+              "pitch": 74
+            }
+          }
+        },
+        {
+          "position_beats": 15.871999999999998,
+          "event": {
+            "Off": {
+              "id": 74
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "synth_id": 7,
+      "muted": false,
+      "volume": 0.35,
+      "events": [
+        {
+          "position_beats": 0.014222222222222221,
+          "event": {
+            "On": {
+              "id": 72,
+              "pitch": 72
+            }
+          }
+        },
+        {
+          "position_beats": 4.053333333333333,
+          "event": {
+            "On": {
+              "id": 71,
+              "pitch": 71
+            }
+          }
+        },
+        {
+          "position_beats": 4.110222222222222,
+          "event": {
+            "Off": {
+              "id": 72
+            }
+          }
+        },
+        {
+          "position_beats": 8.149333333333335,
+          "event": {
+            "Off": {
+              "id": 71
+            }
+          }
+        },
+        {
+          "position_beats": 8.206222222222221,
+          "event": {
+            "On": {
+              "id": 69,
+              "pitch": 69
+            }
+          }
+        },
+        {
+          "position_beats": 12.131555555555556,
+          "event": {
+            "On": {
+              "id": 65,
+              "pitch": 65
+            }
+          }
+        },
+        {
+          "position_beats": 12.131555555555556,
+          "event": {
+            "Off": {
+              "id": 69
+            }
+          }
+        },
+        {
+          "position_beats": 15.886222222222223,
+          "event": {
+            "Off": {
+              "id": 65
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "synth_id": 7,
+      "muted": false,
+      "volume": 0.28,
+      "events": [
+        {
+          "position_beats": 0.0,
+          "event": {
+            "On": {
+              "id": 64,
+              "pitch": 64
+            }
+          }
+        },
+        {
+          "position_beats": 4.067555555555556,
+          "event": {
+            "On": {
+              "id": 62,
+              "pitch": 62
+            }
+          }
+        },
+        {
+          "position_beats": 4.124444444444444,
+          "event": {
+            "Off": {
+              "id": 64
+            }
+          }
+        },
+        {
+          "position_beats": 8.021333333333333,
+          "event": {
+            "Off": {
+              "id": 62
+            }
+          }
+        },
+        {
+          "position_beats": 8.078222222222221,
+          "event": {
+            "On": {
+              "id": 64,
+              "pitch": 64
+            }
+          }
+        },
+        {
+          "position_beats": 12.003555555555556,
+          "event": {
+            "On": {
+              "id": 65,
+              "pitch": 65
+            }
+          }
+        },
+        {
+          "position_beats": 12.060444444444444,
+          "event": {
+            "Off": {
+              "id": 64
+            }
+          }
+        },
+        {
+          "position_beats": 15.843555555555556,
+          "event": {
+            "Off": {
+              "id": 65
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

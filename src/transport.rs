@@ -26,6 +26,16 @@ impl Transport {
         self.running = true;
     }
 
+    pub(crate) fn set_bpm(&mut self, bpm: f64, sample_rate: u32) {
+        let old_position = self.position;
+        let new_position = (self.position as f64 * self.settings.bpm / bpm).round() as usize;
+        self.settings.bpm = bpm;
+        self.length = self.settings.length_samples(sample_rate);
+        self.position = new_position
+            .max(usize::from(old_position > 0))
+            .min(self.length - 1);
+    }
+
     pub(crate) fn stop(&mut self) {
         self.running = false;
         self.position = 0;

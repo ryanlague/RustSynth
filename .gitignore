@@ -1,3 +1,6 @@
 /target
 /wave.wav
 *.log
+
+*.rustsynth.json.bak
+*.rustsynth.json.tmp

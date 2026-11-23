@@ -44,7 +44,7 @@ impl Metronome {
         }
         let beat_sample =
             (f64::from(self.next_beat) * length as f64 / f64::from(beats)).round() as usize;
-        if self.next_beat < beats && position == beat_sample {
+        if self.next_beat < beats && position >= beat_sample {
             if self.enabled {
                 self.accent = self.next_beat == 0;
                 self.frequency = if self.accent { 1760.0 } else { 1175.0 };

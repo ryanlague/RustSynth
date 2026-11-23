@@ -5,7 +5,7 @@ pub(crate) enum LoopState {
     Playing,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub(crate) struct LoopSettings {
     pub(crate) bpm: f64,
     pub(crate) beats: u32,
@@ -35,15 +35,15 @@ impl LoopSettings {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub(crate) enum LoopNoteEvent {
     On { id: u8, pitch: u8 },
     Off { id: u8 },
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub(crate) struct RecordedEvent {
-    pub(crate) position_samples: usize,
+    pub(crate) position_beats: f64,
     pub(crate) event: LoopNoteEvent,
 }
 
@@ -52,6 +52,7 @@ pub(crate) struct Looper {
     settings: LoopSettings,
     position_samples: usize,
     length_samples: usize,
+    sample_rate: u32,
     events: Vec<RecordedEvent>,
     next_event_idx: usize,
     held_notes: [bool; 256],
@@ -65,11 +66,21 @@ impl Looper {
             settings,
             position_samples: 0,
             length_samples: settings.length_samples(sample_rate),
+            sample_rate,
             events: Vec::with_capacity(16_384 + 256),
             next_event_idx: 0,
             held_notes: [false; 256],
             armed: false,
         }
+    }
+
+    pub(crate) fn events(&self) -> &[RecordedEvent] {
+        &self.events
+    }
+
+    pub(crate) fn restore(&mut self, events: &[RecordedEvent]) {
+        self.events.clear();
+        self.events.extend_from_slice(events);
     }
 
     #[cfg(test)]
@@ -95,7 +106,7 @@ impl Looper {
             }
         }
         self.events.push(RecordedEvent {
-            position_samples: self.position_samples,
+            position_beats: self.sample_to_beats(self.position_samples),
             event,
         });
 
@@ -111,11 +122,20 @@ impl Looper {
 
     pub(crate) fn configure(&mut self, settings: LoopSettings, sample_rate: u32) {
         assert_eq!(self.state, LoopState::Stopped);
-        if self.settings != settings {
+        if self.settings.beats != settings.beats {
             self.events.clear();
         }
+        self.sample_rate = sample_rate;
         self.settings = settings;
         self.length_samples = settings.length_samples(sample_rate);
+    }
+
+    pub(crate) fn set_bpm(&mut self, bpm: f64, position: usize, sample_rate: u32) {
+        self.settings.bpm = bpm;
+        self.sample_rate = sample_rate;
+        self.length_samples = self.settings.length_samples(sample_rate);
+        self.position_samples = position;
+        // Keep the playback cursor and held notes: already played events must not retrigger.
     }
 
     pub(crate) fn state(&self) -> LoopState {
@@ -129,7 +149,6 @@ impl Looper {
     pub(crate) fn length(&self) -> usize {
         self.length_samples
     }
-    #[cfg(test)]
     pub(crate) fn settings(&self) -> LoopSettings {
         self.settings
     }
@@ -166,7 +185,7 @@ impl Looper {
         for id in 0..self.held_notes.len() {
             if self.held_notes[id] {
                 self.events.push(RecordedEvent {
-                    position_samples: end_sample,
+                    position_beats: self.sample_to_beats(end_sample),
                     event: LoopNoteEvent::Off { id: id as u8 },
                 });
                 self.held_notes[id] = false;
@@ -210,6 +229,14 @@ impl Looper {
         self.position_samples = position;
     }
 
+    fn sample_to_beats(&self, position: usize) -> f64 {
+        // The transport rounds loop length to whole samples. Clamp the last sample
+        // just below the end beat if that rounding places it on the boundary.
+        (position as f64 / f64::from(self.sample_rate) * self.settings.bpm / 60.0)
+            .min(f64::from(self.settings.beats).next_down())
+            .max(self.events.last().map_or(0.0, |e| e.position_beats))
+    }
+
     pub(crate) fn next_event(&mut self) -> Option<LoopNoteEvent> {
         if self.state != LoopState::Playing {
             return None;
@@ -217,7 +244,11 @@ impl Looper {
 
         let recorded = self.events.get(self.next_event_idx)?;
 
-        if recorded.position_samples != self.position_samples {
+        let event_sample = (recorded.position_beats * 60.0 / self.settings.bpm
+            * f64::from(self.sample_rate))
+        .round() as usize;
+        let event_sample = event_sample.min(self.length_samples - 1);
+        if event_sample > self.position_samples {
             return None;
         }
 
@@ -229,6 +260,95 @@ impl Looper {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn fractional_beats_preserve_performance_across_tempo_and_device_changes() {
+        let settings = LoopSettings {
+            bpm: 137.3,
+            beats: 1,
+        };
+        let mut looper = Looper::new(settings, 44100);
+        looper.start_recording();
+        for _ in 0..7 {
+            looper.advance();
+        }
+        looper.record_event(LoopNoteEvent::On { id: 60, pitch: 60 });
+        for _ in 7..19 {
+            looper.advance();
+        }
+        looper.record_event(LoopNoteEvent::Off { id: 60 });
+        looper.stop();
+        let original = looper.events_for_test();
+        assert_eq!(original[0].position_beats, 7.0 / 44100.0 * 137.3 / 60.0);
+        for (bpm, rate) in [(137.3, 44100), (77.7, 48000), (300.0, 8000), (137.3, 44100)] {
+            looper.configure(LoopSettings { bpm, beats: 1 }, rate);
+            assert_eq!(looper.events(), original);
+            looper.play();
+            for _ in 0..2 {
+                let mut played = Vec::new();
+                for position in 0..looper.length() {
+                    while let Some(event) = looper.next_event() {
+                        played.push((position, event));
+                    }
+                    looper.advance();
+                }
+                let expected: Vec<_> = original
+                    .iter()
+                    .map(|e| {
+                        (
+                            (e.position_beats * 60.0 / bpm * f64::from(rate)).round() as usize,
+                            e.event,
+                        )
+                    })
+                    .collect();
+                assert_eq!(played, expected);
+            }
+            looper.stop();
+        }
+        looper.configure(
+            LoopSettings {
+                bpm: 137.3,
+                beats: 2,
+            },
+            44100,
+        );
+        assert!(looper.events().is_empty());
+    }
+
+    #[test]
+    fn rounded_boundary_events_are_played_in_order_on_the_last_sample() {
+        let mut looper = Looper::new(
+            LoopSettings {
+                bpm: 300.0,
+                beats: 1,
+            },
+            8,
+        );
+        looper.restore(&[
+            RecordedEvent {
+                position_beats: 0.99,
+                event: LoopNoteEvent::On { id: 60, pitch: 60 },
+            },
+            RecordedEvent {
+                position_beats: 0.999,
+                event: LoopNoteEvent::Off { id: 60 },
+            },
+        ]);
+        looper.play();
+        for _ in 0..looper.length() - 1 {
+            assert!(looper.next_event().is_none());
+            looper.advance();
+        }
+        assert!(matches!(
+            looper.next_event(),
+            Some(LoopNoteEvent::On { .. })
+        ));
+        assert!(matches!(
+            looper.next_event(),
+            Some(LoopNoteEvent::Off { .. })
+        ));
+        assert!(looper.next_event().is_none());
+    }
 
     #[test]
     fn stopping_a_partial_take_records_releases_before_replaying_it() {

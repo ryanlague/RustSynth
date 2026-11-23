@@ -1,6 +1,6 @@
 use crate::{envelope::ADSR, note::Note, voice::Voice, waveform::Waveform};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub(crate) enum VoiceMode {
     Polyphonic,
     Monophonic,

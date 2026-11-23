@@ -36,7 +36,7 @@ impl Noise {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub(crate) enum Waveform {
     Sine,
     Triangle,
@@ -44,6 +44,7 @@ pub(crate) enum Waveform {
     Sawtooth,
     WhiteNoise,
     FilteredNoise,
+    Kick,
 }
 
 impl Waveform {
@@ -55,12 +56,13 @@ impl Waveform {
             Self::Sawtooth => "Sawtooth",
             Self::WhiteNoise => "White noise",
             Self::FilteredNoise => "Filtered noise",
+            Self::Kick => "Kick",
         }
     }
 
     pub(crate) fn calculate(&self, phase: f64, amplitude: f64, noise: &mut Noise) -> f64 {
         match self {
-            Waveform::Sine => phase.sin() * amplitude,
+            Waveform::Sine | Waveform::Kick => phase.sin() * amplitude,
             Waveform::WhiteNoise => noise.next_sample() * amplitude,
             Waveform::FilteredNoise => {
                 let sample = noise.next_sample();
@@ -83,11 +85,32 @@ impl Waveform {
             }
         }
     }
+
+    pub(crate) fn frequency_at(&self, base_frequency: f64, time: f64) -> f64 {
+        if *self == Self::Kick {
+            // A short pitch transient falls from four times the note frequency
+            // toward its body pitch. The amplitude still follows the normal ADSR.
+            base_frequency * (1.0 + 3.0 * (-time / 0.02).exp())
+        } else {
+            base_frequency
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn kick_pitch_sweeps_down_to_its_body_frequency() {
+        let base = 65.0;
+        assert_eq!(Waveform::Kick.frequency_at(base, 0.0), base * 4.0);
+        assert!(Waveform::Kick.frequency_at(base, 0.02) < base * 4.0);
+        assert!(Waveform::Kick.frequency_at(base, 0.08) < Waveform::Kick.frequency_at(base, 0.02));
+        assert!((Waveform::Kick.frequency_at(base, 0.3) - base).abs() < 0.001);
+        assert_eq!(Waveform::Sine.frequency_at(base, 0.0), base);
+        assert_eq!(Waveform::Sine.frequency_at(base, 0.3), base);
+    }
 
     #[test]
     fn white_noise_is_bounded_balanced_and_not_tied_to_note_phase() {

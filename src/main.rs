@@ -8,6 +8,8 @@ mod looper;
 mod metronome;
 mod note;
 mod oscilloscope;
+mod presets;
+mod project;
 mod synth;
 mod synth_event;
 mod transport;

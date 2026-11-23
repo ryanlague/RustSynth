@@ -37,8 +37,8 @@ Hold Shift for one octave up, or Control for one octave down. Holding both uses
 the normal octave. Releasing modifiers does not change notes already sounding.
 Overlapping pitches from different keys remain independently releasable.
 
-Choose Sine, Triangle, Square, Sawtooth, White noise, or Filtered noise from the
-waveform dropdown, or press 1–6 while playing. The selector stays synchronized with the number-key shortcuts. Changes affect held and future notes only on the selected synth and its linked tracks,
+Choose Sine, Triangle, Square, Sawtooth, White noise, Filtered noise, or Kick from the
+waveform dropdown, or press 1–7 while playing. The selector stays synchronized with the number-key shortcuts. Changes affect held and future notes only on the selected synth and its linked tracks,
 without restarting their envelopes.
 
 Use **Voice mode** to select Polyphonic (independent voices and chords),
@@ -81,7 +81,7 @@ and voice mode are chosen in `src/main.rs`; audio setup is in `src/live.rs`.
 ## Multiple synths and track routing
 
 The **Synth** dropdown chooses the instrument you edit and play live. **Add synth**
-creates another instrument, copying the current waveform, ADSR, and voice mode.
+creates another instrument, copying the current waveform, ADSR, voice mode, and octave shift.
 Use **Name** to call instruments “Noise”, “Pitches”, or anything useful.
 Each synth remembers its own settings when you select another one.
 
@@ -95,8 +95,62 @@ use the new instrument. ADSR edits continue to apply to new notes only.
 
 New tracks use the currently selected synth. Pressing Record on an existing track
 selects its assigned synth for live playing. Switching synths releases live keys,
-while the previous synth’s release tails retain their sound. Synths and tracks
-are session-only; saving projects is not implemented yet.
+while the previous synth’s release tails retain their sound. Open **☰ → Save / Load** for the project modal. Use **Save project** and
+**Load project** while playback is stopped. Enter a path
+such as `saved_projects/my-song.rustsynth.json` in **Project file**. The default folder
+is `saved_projects`, created automatically when saving (relative paths use the directory
+where you started the app). Saving keeps the previous file as a `.bak` backup before replacing it; loading replaces the current
+session, so save your current work first.
+
+Projects use versioned JSON and include recorded notes, synth names/settings,
+track routing, mute/volume, BPM, beats, and click settings. Event times are stored as fractional beats without quantization, so tempo and
+audio device sample-rate changes preserve their musical timing. Loading leaves
+playback stopped; press Play to hear the recording. Files are validated before
+replacing the session. File I/O runs outside the audio callback. These are editable
+recordings, rather than audio exports; `--wav` still renders the built-in demo.
+
+## Synth presets
+
+Choose a sound from **Preset**, below the synth name:
+
+| Preset | Sound |
+| --- | --- |
+| Sine keys | Clean sustained sine tone |
+| Pluck | Short triangle pluck |
+| Soft pad | Slow attack and long release |
+| Bass | Monophonic sawtooth, two octaves lower by default |
+| Lead | Square-wave legato lead |
+| Kick | Low sine hit with a fast downward pitch sweep |
+| Hi-hat | Very short white-noise hit |
+| Snare | Longer white-noise burst |
+| Noise tom | Percussive filtered noise that follows the played key |
+
+Presets update the selected synth's waveform, ADSR, voice mode, and octave shift in one audio
+command. Linked tracks share the change, while other synths and the transport
+continue untouched. Synth names, track assignments, and recorded notes are kept.
+Current live keys release when applying a different preset; ADSR applies to new
+notes as usual. Manual edits show **Custom** unless the settings match a preset.
+To create a separate preset instrument, click Add synth first, then choose its
+preset and name it. The built-in sounds are defined in `src/presets.rs`.
+
+The **Octave shift** setting is independent for each synth, from −3 to +3 octaves.
+Bass and Kick default to −2, Lead to +1, and the other built-in presets to 0. Keyboard Shift and
+Control add +1 and −1 on top of this setting. Changes affect new live notes and
+new playback events, leaving held notes at their original frequency. Loops store
+the played pitch before the synth's shift, so it is applied exactly once; routing
+a track to another synth uses that synth's octave. Resulting pitches are limited
+to the MIDI note range 0–127. Plain white noise ignores pitch; filtered noise's
+band-pass follows the shifted frequency.
+
+## Kick drum
+
+Choose **Kick** from the Preset dropdown for a low, decaying sine hit with a quick
+pitch drop. It starts two octaves below the played key, so A (C4 on the keyboard)
+produces a C2 body pitch near 65 Hz. Other keys tune the body; Shift and Control
+still work. The preset uses a 1 ms attack, 320 ms decay, zero sustain, and 120 ms
+release. Tap keys in polyphonic mode for separate hits. Holding a key lets the
+hit decay to silence. **7** selects the Kick waveform without changing ADSR or
+octave settings; the preset configures the complete sound.
 
 ## Noise percussion
 
@@ -114,7 +168,8 @@ The filter uses the unity-peak band-pass design from the
 
 ## Record synchronized loop tracks
 
-1. While stopped, choose **BPM** (30–300, including decimals) and **Beats** (1–64).
+1. Choose **BPM** (30–300, including decimals). You can change it while playing
+   or recording; the loop stays at its current beat. Set **Beats** (1–64) while stopped.
 2. Leave **Click** enabled (the default), or mute it. It ticks during recording and playback, with an accent
    at the beginning of each loop. Muting it does not move the loop clock.
 3. Press **Play** to start the loop clock and click. Any existing take also plays.
@@ -122,8 +177,9 @@ The filter uses the unity-peak band-pass design from the
    so you can use the remaining beats as a count-in.
 5. After one full recorded loop, recording automatically becomes repeating playback.
 6. Press **Stop** to stop and rewind, canceling any armed recording. To replace a take,
-   press Play and then that track’s Record button again. Changing BPM or beat count while stopped clears
-   the old take, since its event times belong to the previous loop length.
+   press Play and then that track’s Record button again. Changing BPM, including during playback or recording, preserves
+   the takes and changes their playback speed without changing pitch. Changing the
+   beat count still clears the takes when playback starts.
 
 Use **Add track** for another independent loop. New tracks join the current sample
 clock without restarting it. Each row has **Record**, **Mute**, **Volume**, and
@@ -165,3 +221,23 @@ cargo fmt --check
 cargo check
 cargo test
 ```
+
+## Track selection and solo
+
+Click a track row to select it (the track name is highlighted) and use its linked
+synth for live keyboard playing. Changing the selected track’s synth assignment
+also switches the live sound. Choosing a synth directly clears the track selection.
+
+Use **Solo** to hear only soloed loop tracks. Multiple tracks can be soloed together;
+**Mute** still silences a soloed track. Live keyboard playing and the click remain
+audible. Solo and mute do not pause recording or playback timing. Solo settings
+are included in saved projects; older projects start with solo off.
+
+Open **☰ → How to** in the top-right corner for keyboard controls. Close the
+help with **Close**, Escape, or a click outside the modal.
+
+Project format version 2 stores `position_beats` for each note event. The existing
+`dammit.rustsynth.json` recording has been converted from sample positions.
+
+The main view displays save/load results. Loading leaves the loop stopped; press
+**Play** to hear the loaded recording.
